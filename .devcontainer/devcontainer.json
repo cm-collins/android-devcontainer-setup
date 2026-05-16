@@ -1,0 +1,28 @@
+{
+  "name": "Android Kotlin Dev Container",
+  "build": {
+    "dockerfile": "Dockerfile.dev",
+    "context": ".",
+    "args": {
+      "ANDROID_SDK_PROFILE": "base"
+    }
+  },
+  "remoteUser": "android",
+  "containerEnv": {
+    "ANDROID_HOME": "/opt/android-sdk",
+    "ANDROID_SDK_ROOT": "/opt/android-sdk"
+  },
+  "mounts": [
+    "source=android-devcontainer-gradle-cache,target=/home/android/.gradle,type=volume"
+  ],
+  "postCreateCommand": "bash .devcontainer/scripts/verify-android-env.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "fwcd.kotlin",
+        "redhat.java",
+        "vscjava.vscode-gradle"
+      ]
+    }
+  }
+}

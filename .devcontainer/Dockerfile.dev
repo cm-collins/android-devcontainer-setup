@@ -1,0 +1,69 @@
+# Current Android Gradle Plugin releases use JDK 17 as the minimum/default
+# runtime, so the base image favors Android compatibility over newest-Java churn.
+# Android's Linux host tools are x86_64-oriented, so keep the container on
+# linux/amd64 even when Docker is running on an ARM-based desktop host.
+ARG BASE_PLATFORM=linux/amd64
+FROM --platform=${BASE_PLATFORM} eclipse-temurin:17-jdk-jammy
+
+# Keep the Android command-line tools pinned so image rebuilds stay reproducible.
+# The UID/GID args let the container user line up with a typical Linux host user.
+ARG DEBIAN_FRONTEND=noninteractive
+ARG ANDROID_CMDLINE_TOOLS_VERSION=14742923
+ARG ANDROID_SDK_PROFILE=base
+ARG USERNAME=android
+ARG USER_UID=1000
+ARG USER_GID=1000
+
+# Android tools expect both the SDK root variables and executable paths to exist.
+ENV ANDROID_SDK_ROOT=/opt/android-sdk \
+    ANDROID_HOME=/opt/android-sdk \
+    PATH=/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:${PATH}
+
+# Install only the small host utilities needed to fetch SDKs and work with projects.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        bash \
+        ca-certificates \
+        curl \
+        git \
+        openssh-client \
+        unzip \
+        zip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Run day-to-day work as a non-root user and prepare writable SDK/cache folders.
+RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
+    && useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}" \
+    && mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" \
+    && mkdir -p "/home/${USERNAME}/.gradle" \
+    && chown -R "${USERNAME}:${USERNAME}" "${ANDROID_SDK_ROOT}" "/home/${USERNAME}/.gradle"
+
+USER ${USERNAME}
+
+WORKDIR /home/${USERNAME}
+
+# Google ships the archive as cmdline-tools/, but sdkmanager expects
+# cmdline-tools/latest/, so the extracted files are moved into that layout.
+RUN curl -fsSLo commandlinetools.zip \
+        "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_CMDLINE_TOOLS_VERSION}_latest.zip" \
+    && unzip -q commandlinetools.zip \
+    && mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools/latest" \
+    && mv cmdline-tools/* "${ANDROID_SDK_ROOT}/cmdline-tools/latest/" \
+    && rm -rf commandlinetools.zip cmdline-tools
+
+COPY --chown=${USERNAME}:${USERNAME} android-sdk-packages*.txt /tmp/
+
+# Licenses must be accepted before sdkmanager can install the packages listed
+# by the selected profile manifest.
+RUN case "${ANDROID_SDK_PROFILE}" in \
+        base) package_file="/tmp/android-sdk-packages.txt" ;; \
+        native) package_file="/tmp/android-sdk-packages.native.txt" ;; \
+        emulator-assets) package_file="/tmp/android-sdk-packages.emulator-assets.txt" ;; \
+        *) echo "Unsupported ANDROID_SDK_PROFILE: ${ANDROID_SDK_PROFILE}" >&2; exit 1 ;; \
+    esac \
+    && yes | sdkmanager --sdk_root="${ANDROID_SDK_ROOT}" --licenses >/dev/null \
+    && sdkmanager --sdk_root="${ANDROID_SDK_ROOT}" --package_file="${package_file}" \
+    && rm /tmp/android-sdk-packages*.txt
+
+# Dev Container tools mount the project here when the environment starts.
+WORKDIR /workspace
