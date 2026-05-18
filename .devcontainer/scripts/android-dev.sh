@@ -20,7 +20,7 @@ Commands:
   project        Run a command in a project: project <directory> <command> [args...]
   watch-gradle   Watch Gradle files and offer sync checks: watch-gradle [--auto]
   install-debug  Interactively choose a device and run ./gradlew installDebug
-  run-debug      Install and launch an app: run-debug <application-id>
+  run-debug      Install and launch the app: run-debug [application-id]
   tasks          Show Gradle tasks available in the current project
 EOF
 }
@@ -45,6 +45,111 @@ require_adb() {
 run_gradle() {
   require_gradle_wrapper
   ./gradlew "$@"
+}
+
+detect_application_id() {
+  local explicit_application_id="${1:-}"
+  local candidate_files=()
+  local application_ids=()
+  local file
+  local detected_id
+
+  if [[ -n "${explicit_application_id}" ]]; then
+    require_valid_application_id "${explicit_application_id}"
+    printf '%s\n' "${explicit_application_id}"
+    return
+  fi
+
+  if [[ -f app/build.gradle.kts ]]; then
+    candidate_files+=(app/build.gradle.kts)
+  fi
+  if [[ -f app/build.gradle ]]; then
+    candidate_files+=(app/build.gradle)
+  fi
+
+  while IFS= read -r file; do
+    case "${file}" in
+      ./app/build.gradle.kts|./app/build.gradle)
+        ;;
+      *)
+        candidate_files+=("${file#./}")
+        ;;
+    esac
+  done < <(
+    find . \
+      -path './.gradle' -prune -o \
+      -path './.git' -prune -o \
+      \( -name 'build.gradle.kts' -o -name 'build.gradle' \) \
+      -print
+  )
+
+  for file in "${candidate_files[@]}"; do
+    while IFS= read -r detected_id; do
+      if is_valid_application_id "${detected_id}"; then
+        application_ids+=("${detected_id}")
+      fi
+    done < <(
+      sed -nE \
+        's/^[[:space:]]*applicationId[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p;
+         s/^[[:space:]]*applicationId[[:space:]]+"([^"]+)".*/\1/p' \
+        "${file}"
+    )
+  done
+
+  if [[ "${#application_ids[@]}" -eq 0 ]]; then
+    echo "Could not detect an application ID from Gradle files." >&2
+    echo "Run: bash .devcontainer/scripts/android-dev.sh run-debug <application-id>" >&2
+    exit 1
+  fi
+
+  mapfile -t application_ids < <(printf '%s\n' "${application_ids[@]}" | sort -u)
+  if [[ "${#application_ids[@]}" -gt 1 ]]; then
+    echo "Multiple application IDs were found:" >&2
+    printf '  %s\n' "${application_ids[@]}" >&2
+    echo "Run: bash .devcontainer/scripts/android-dev.sh run-debug <application-id>" >&2
+    exit 1
+  fi
+
+  printf '%s\n' "${application_ids[0]}"
+}
+
+child_project_roots() {
+  local gradle_wrapper
+
+  while IFS= read -r gradle_wrapper; do
+    if [[ -x "${gradle_wrapper}" ]]; then
+      dirname "${gradle_wrapper#./}"
+    fi
+  done < <(find . -mindepth 2 -maxdepth 2 -name gradlew -type f -print)
+}
+
+select_project_root() {
+  local projects=()
+  local choice
+
+  mapfile -t projects < <(child_project_roots)
+
+  case "${#projects[@]}" in
+    0)
+      require_gradle_wrapper
+      ;;
+    1)
+      printf '%s\n' "${projects[0]}"
+      ;;
+    *)
+      echo "Select a project:" >&2
+      local index
+      for index in "${!projects[@]}"; do
+        printf '  %s) %s\n' "$((index + 1))" "${projects[$index]}" >&2
+      done
+      read -r -p "Project number: " choice
+      if [[ ! "${choice}" =~ ^[0-9]+$ ]] || (( choice < 1 || choice > ${#projects[@]} )); then
+        echo "Invalid project selection." >&2
+        exit 1
+      fi
+      printf '%s\n' "${projects[$((choice - 1))]}"
+      ;;
+  esac
 }
 
 to_package_path() {
@@ -317,11 +422,11 @@ Build completed successfully.
 Next steps:
   cd ${target_dir}
   bash .devcontainer/scripts/android-dev.sh devices
-  bash .devcontainer/scripts/android-dev.sh run-debug ${application_id}
+  bash .devcontainer/scripts/android-dev.sh run-debug
 
 Or, from the current directory:
-  bash .devcontainer/scripts/android-dev.sh project ${target_dir} devices
-  bash .devcontainer/scripts/android-dev.sh project ${target_dir} run-debug ${application_id}
+  bash .devcontainer/scripts/android-dev.sh devices
+  bash .devcontainer/scripts/android-dev.sh run-debug
 EOF
 }
 
@@ -543,18 +648,37 @@ install_debug() {
   ANDROID_SERIAL="${serial}" run_gradle installDebug
 }
 
+run_debug_in_current_project() {
+  local application_id="$1"
+  local serial
+  application_id="$(detect_application_id "${application_id}")"
+  serial="$(select_device)"
+  echo "Using device: ${serial}"
+  echo "Using application ID: ${application_id}"
+  ANDROID_SERIAL="${serial}" run_gradle installDebug
+  adb -s "${serial}" shell monkey -p "${application_id}" 1 >/dev/null
+}
+
 run_debug() {
-  if [[ $# -ne 2 ]]; then
-    echo "Usage: bash .devcontainer/scripts/android-dev.sh run-debug <application-id>" >&2
+  if [[ $# -gt 2 ]]; then
+    echo "Usage: bash .devcontainer/scripts/android-dev.sh run-debug [application-id]" >&2
     exit 1
   fi
 
-  local application_id="$2"
-  local serial
-  serial="$(select_device)"
-  echo "Using device: ${serial}"
-  ANDROID_SERIAL="${serial}" run_gradle installDebug
-  adb -s "${serial}" shell monkey -p "${application_id}" 1 >/dev/null
+  local application_id="${2:-}"
+  local project_root
+
+  if [[ -x ./gradlew ]]; then
+    run_debug_in_current_project "${application_id}"
+    return
+  fi
+
+  project_root="$(select_project_root)"
+  echo "Using project: ${project_root}"
+  (
+    cd "${project_root}"
+    run_debug_in_current_project "${application_id}"
+  )
 }
 
 doctor() {

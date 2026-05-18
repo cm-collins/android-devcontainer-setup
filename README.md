@@ -498,7 +498,7 @@ Available commands:
 | `project` | Run another command inside a project directory from the current shell |
 | `watch-gradle` | Watch Gradle files and prompt for sync checks |
 | `install-debug` | Interactively choose a device and install the debug build |
-| `run-debug` | Interactively choose a device, install the debug build, and launch an application ID |
+| `run-debug` | Interactively choose a device, install the debug build, and launch the detected app |
 | `tasks` | Show Gradle tasks for the current project |
 
 These commands wrap the same Gradle wrapper and ADB workflows used by Android projects, so terminal users and IDE users can share one vocabulary.
@@ -699,11 +699,19 @@ or, for some Kotlin Multiplatform projects:
 ./gradlew :composeApp:installDebug
 ```
 
-If multiple authorized devices are available, `install-debug` asks which device to target. To install and launch a standard Android app in one step, use the package/application ID:
+If multiple authorized devices are available, `install-debug` asks which device to target. To install and launch a standard Android app in one step, run:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh run-debug
+```
+
+`run-debug` detects the application ID from the Gradle files. If a project contains more than one application ID, pass the one you want explicitly:
 
 ```bash
 bash .devcontainer/scripts/android-dev.sh run-debug com.example.myapp
 ```
+
+If you run `run-debug` from this template repository and exactly one generated child project exists, the CLI selects that project automatically. If multiple child projects exist, it asks which one to run.
 
 ---
 
@@ -760,8 +768,8 @@ cd my-android-app
 If you want to stay in the current directory instead of changing into the new app immediately, use:
 
 ```bash
-bash .devcontainer/scripts/android-dev.sh project my-android-app devices
-bash .devcontainer/scripts/android-dev.sh project my-android-app run-debug com.example.myapp
+bash .devcontainer/scripts/android-dev.sh devices
+bash .devcontainer/scripts/android-dev.sh run-debug
 ```
 
 The generated starter includes:
@@ -775,6 +783,14 @@ The generated starter includes:
 * a copy of this `.devcontainer/` setup
 
 Both creation commands download Gradle once in order to generate the wrapper for the new project, then run the full build automatically.
+
+For generated projects, `run-debug` reads the application ID from the Gradle files automatically. From inside the generated project, the normal run command is:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh run-debug
+```
+
+From the template repository root, the same command automatically uses the only generated child project when there is exactly one.
 
 After `new-app`, project-specific commands must run from the generated project root or through the `project` helper. Running `build` from the template repository root still fails intentionally because the template itself is not an Android app.
 
