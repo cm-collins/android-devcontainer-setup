@@ -15,6 +15,8 @@ Commands:
   pair-device    Pair a wireless device: pair-device <ip:port>
   connect-device Connect to a paired wireless device: connect-device <ip:port>
   network-check  Check phone reachability: network-check <ip> [port]
+  new-app        Create a basic Android app: new-app <directory> <application-id> [app-name]
+  project        Run a command in a project: project <directory> <command> [args...]
   install-debug  Interactively choose a device and run ./gradlew installDebug
   run-debug      Install and launch an app: run-debug <application-id>
   tasks          Show Gradle tasks available in the current project
@@ -41,6 +43,256 @@ require_adb() {
 run_gradle() {
   require_gradle_wrapper
   ./gradlew "$@"
+}
+
+to_package_path() {
+  printf '%s\n' "${1//./\/}"
+}
+
+validate_application_id() {
+  local application_id="$1"
+  if [[ ! "${application_id}" =~ ^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$ ]]; then
+    echo "Invalid application ID: ${application_id}" >&2
+    echo "Use a lowercase reverse-domain ID such as com.example.myapp." >&2
+    exit 1
+  fi
+}
+
+validate_app_name() {
+  local app_name="$1"
+  if [[ ! "${app_name}" =~ ^[A-Za-z][A-Za-z0-9[:space:]_-]*$ ]]; then
+    echo "Invalid app name: ${app_name}" >&2
+    echo "Use letters, numbers, spaces, underscores, or hyphens, starting with a letter." >&2
+    exit 1
+  fi
+}
+
+escape_xml() {
+  local value="$1"
+  value="${value//&/&amp;}"
+  value="${value//</&lt;}"
+  value="${value//>/&gt;}"
+  value="${value//\"/&quot;}"
+  value="${value//\'/&apos;}"
+  printf '%s\n' "${value}"
+}
+
+write_new_app_files() {
+  local target_dir="$1"
+  local application_id="$2"
+  local app_name="$3"
+  local package_path
+  local escaped_app_name
+
+  package_path="$(to_package_path "${application_id}")"
+  escaped_app_name="$(escape_xml "${app_name}")"
+
+  mkdir -p \
+    "${target_dir}/app/src/main/java/${package_path}" \
+    "${target_dir}/app/src/main/res/values"
+
+  cat >"${target_dir}/settings.gradle.kts" <<EOF
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "${app_name}"
+include(":app")
+EOF
+
+  cat >"${target_dir}/build.gradle.kts" <<'EOF'
+plugins {
+    id("com.android.application") version "9.2.0" apply false
+}
+EOF
+
+  cat >"${target_dir}/app/build.gradle.kts" <<EOF
+plugins {
+    id("com.android.application")
+}
+
+android {
+    namespace = "${application_id}"
+    compileSdk = 36
+
+    defaultConfig {
+        applicationId = "${application_id}"
+        minSdk = 23
+        targetSdk = 36
+        versionCode = 1
+        versionName = "1.0"
+    }
+}
+EOF
+
+  cat >"${target_dir}/gradle.properties" <<'EOF'
+org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+android.useAndroidX=true
+EOF
+
+  cat >"${target_dir}/.gitignore" <<'EOF'
+.gradle/
+local.properties
+**/build/
+EOF
+
+  cat >"${target_dir}/app/src/main/AndroidManifest.xml" <<EOF
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:theme="@style/AppTheme">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+EOF
+
+  cat >"${target_dir}/app/src/main/res/values/strings.xml" <<EOF
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">${escaped_app_name}</string>
+</resources>
+EOF
+
+  cat >"${target_dir}/app/src/main/res/values/themes.xml" <<'EOF'
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar" />
+</resources>
+EOF
+
+  cat >"${target_dir}/app/src/main/java/${package_path}/MainActivity.kt" <<EOF
+package ${application_id}
+
+import android.app.Activity
+import android.os.Bundle
+import android.view.Gravity
+import android.widget.TextView
+
+class MainActivity : Activity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        setContentView(
+            TextView(this).apply {
+                text = "Hello Android"
+                textSize = 24f
+                gravity = Gravity.CENTER
+            },
+        )
+    }
+}
+EOF
+}
+
+copy_devcontainer_files() {
+  local target_dir="$1"
+  local script_dir
+  local source_devcontainer_dir
+
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  source_devcontainer_dir="$(cd "${script_dir}/.." && pwd)"
+
+  cp -R "${source_devcontainer_dir}" "${target_dir}/.devcontainer"
+}
+
+generate_gradle_wrapper() {
+  local target_dir="$1"
+  local gradle_version="9.4.1"
+  local temp_dir
+
+  temp_dir="$(mktemp -d)"
+
+  echo "Downloading Gradle ${gradle_version} to generate the wrapper..."
+  curl -fsSLo "${temp_dir}/gradle.zip" "https://services.gradle.org/distributions/gradle-${gradle_version}-bin.zip"
+  unzip -q "${temp_dir}/gradle.zip" -d "${temp_dir}"
+
+  (
+    cd "${target_dir}"
+    "${temp_dir}/gradle-${gradle_version}/bin/gradle" --no-daemon wrapper \
+      --gradle-version "${gradle_version}" \
+      --distribution-type bin
+  )
+
+  rm -rf "${temp_dir}"
+}
+
+new_app() {
+  if [[ $# -lt 3 || $# -gt 4 ]]; then
+    echo "Usage: bash .devcontainer/scripts/android-dev.sh new-app <directory> <application-id> [app-name]" >&2
+    exit 1
+  fi
+
+  local target_dir="$2"
+  local application_id="$3"
+  local app_name="${4:-$(basename "${target_dir}")}"
+
+  validate_application_id "${application_id}"
+  validate_app_name "${app_name}"
+
+  if [[ -e "${target_dir}" ]] && [[ -n "$(find "${target_dir}" -mindepth 1 -maxdepth 1 2>/dev/null)" ]]; then
+    echo "Target directory already exists and is not empty: ${target_dir}" >&2
+    exit 1
+  fi
+
+  mkdir -p "${target_dir}"
+  write_new_app_files "${target_dir}" "${application_id}" "${app_name}"
+  copy_devcontainer_files "${target_dir}"
+  generate_gradle_wrapper "${target_dir}"
+
+  cat <<EOF
+
+Created Android app in ${target_dir}
+
+Next steps:
+  cd ${target_dir}
+  bash .devcontainer/scripts/android-dev.sh doctor
+  bash .devcontainer/scripts/android-dev.sh build
+
+Or, from the current directory:
+  bash .devcontainer/scripts/android-dev.sh project ${target_dir} doctor
+  bash .devcontainer/scripts/android-dev.sh project ${target_dir} build
+EOF
+}
+
+run_in_project() {
+  if [[ $# -lt 3 ]]; then
+    echo "Usage: bash .devcontainer/scripts/android-dev.sh project <directory> <command> [args...]" >&2
+    exit 1
+  fi
+
+  local target_dir="$2"
+  shift 2
+
+  if [[ ! -d "${target_dir}" ]]; then
+    echo "Project directory does not exist: ${target_dir}" >&2
+    exit 1
+  fi
+
+  (
+    cd "${target_dir}"
+    bash .devcontainer/scripts/android-dev.sh "$@"
+  )
 }
 
 network_check() {
@@ -123,7 +375,7 @@ install_debug() {
   local serial
   serial="$(select_device)"
   echo "Using device: ${serial}"
-  run_gradle -Pandroid.injected.device.serial="${serial}" installDebug
+  ANDROID_SERIAL="${serial}" run_gradle installDebug
 }
 
 run_debug() {
@@ -136,7 +388,7 @@ run_debug() {
   local serial
   serial="$(select_device)"
   echo "Using device: ${serial}"
-  run_gradle -Pandroid.injected.device.serial="${serial}" installDebug
+  ANDROID_SERIAL="${serial}" run_gradle installDebug
   adb -s "${serial}" shell monkey -p "${application_id}" 1 >/dev/null
 }
 
@@ -217,6 +469,12 @@ EOF
     ;;
   network-check)
     network_check "$@"
+    ;;
+  new-app)
+    new_app "$@"
+    ;;
+  project)
+    run_in_project "$@"
     ;;
   install-debug)
     install_debug
