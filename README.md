@@ -197,6 +197,7 @@ The editor is not the source of truth. The environment is defined by:
 ├── android-sdk-packages.emulator-assets.txt
 ├── devcontainer.json
 └── scripts/
+    ├── android-dev.sh
     └── verify-android-env.sh
 ```
 
@@ -359,7 +360,10 @@ project-root/
 │   ├── android-sdk-packages.txt
 │   ├── android-sdk-packages.native.txt
 │   ├── android-sdk-packages.emulator-assets.txt
-│   └── devcontainer.json
+│   ├── devcontainer.json
+│   └── scripts/
+│       ├── android-dev.sh
+│       └── verify-android-env.sh
 ├── gradlew
 ├── gradlew.bat
 ├── settings.gradle.kts
@@ -378,7 +382,10 @@ project-root/
 │   ├── android-sdk-packages.txt
 │   ├── android-sdk-packages.native.txt
 │   ├── android-sdk-packages.emulator-assets.txt
-│   └── devcontainer.json
+│   ├── devcontainer.json
+│   └── scripts/
+│       ├── android-dev.sh
+│       └── verify-android-env.sh
 ├── composeApp/
 ├── shared/
 ├── iosApp/
@@ -465,6 +472,57 @@ These improve editing and project navigation while keeping the environment usabl
 
 ---
 
+## Shared Developer Commands
+
+The project includes one IDE-neutral command entry point:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh <command>
+```
+
+Available commands:
+
+| Command | Purpose |
+| --- | --- |
+| `doctor` | Check Java, Android SDK, ADB, installed packages, and visible devices |
+| `build` | Run the project build |
+| `test` | Run unit tests |
+| `lint` | Run Android lint |
+| `assemble-debug` | Build a debug APK |
+| `devices` | List devices visible to ADB |
+| `pair-device` | Pair a phone for wireless debugging |
+| `connect-device` | Connect to a paired wireless phone |
+| `network-check` | Check whether the container can reach a phone IP and optional port |
+| `install-debug` | Interactively choose a device and install the debug build |
+| `run-debug` | Interactively choose a device, install the debug build, and launch an application ID |
+| `tasks` | Show Gradle tasks for the current project |
+
+These commands wrap the same Gradle wrapper and ADB workflows used by Android projects, so terminal users and IDE users can share one vocabulary.
+
+---
+
+## Workflow by Editor
+
+### Terminal-Only
+
+Use the Dev Container terminal as the main interface:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh doctor
+bash .devcontainer/scripts/android-dev.sh build
+bash .devcontainer/scripts/android-dev.sh test
+```
+
+### VS Code or Cursor
+
+Open the project in the Dev Container, use the installed Kotlin/Java/Gradle extensions for editing, and run the same shared commands from the integrated terminal.
+
+### Android Studio or IntelliJ IDEA
+
+Open or create the Dev Container from the JetBrains IDE, then use either the IDE UI or the shared commands from the terminal. The editor can change, but Gradle, ADB, and the containerized toolchain stay the same.
+
+---
+
 ## Getting Started
 
 1. Install Docker for the host operating system.
@@ -474,7 +532,7 @@ These improve editing and project navigation while keeping the environment usabl
 5. Confirm the environment using the automatic verification output or run:
 
 ```bash
-bash .devcontainer/scripts/verify-android-env.sh
+bash .devcontainer/scripts/android-dev.sh doctor
 ```
 
 After the container is ready, open or copy an Android project into the workspace and use the normal Gradle wrapper commands:
@@ -500,21 +558,23 @@ To reuse this setup in an existing Android repository:
 1. Copy the `.devcontainer/` directory into the project root.
 2. Confirm that the project uses the Gradle wrapper (`gradlew` and `gradlew.bat`).
 3. Reopen the project in the Dev Container.
-4. Run the verification script:
+4. Run the health check:
 
 ```bash
-bash .devcontainer/scripts/verify-android-env.sh
+bash .devcontainer/scripts/android-dev.sh doctor
 ```
 
 5. Build the project with its normal Gradle tasks:
 
 ```bash
-./gradlew build
-./gradlew test
-./gradlew lint
+bash .devcontainer/scripts/android-dev.sh build
+bash .devcontainer/scripts/android-dev.sh test
+bash .devcontainer/scripts/android-dev.sh lint
 ```
 
 If the project targets a different Android API level or build-tools version, update `.devcontainer/android-sdk-packages.txt` before rebuilding the container.
+
+If you run `build`, `test`, `lint`, `assemble-debug`, `install-debug`, or `tasks` inside this template repository itself, the command will stop because the template intentionally does not include an Android app project or Gradle wrapper.
 
 ---
 
@@ -532,7 +592,71 @@ If the project requires different native versions, edit `.devcontainer/android-s
 
 ## Physical Device Access
 
-The container includes ADB, but the host OS must expose the device first.
+The container includes ADB, but a USB cable plugged into the host does not automatically make the phone visible inside the container.
+
+For the most portable workflow across Windows, macOS, Linux, and containerized development, prefer Android wireless debugging when the device supports it.
+
+For a focused walkthrough, see:
+
+```text
+docs/connect-android-phone.md
+```
+
+### Recommended: Wireless Debugging
+
+1. Put the workstation and phone on the same Wi-Fi network.
+2. Enable developer options and Wireless debugging on the phone.
+3. Choose the pairing method that matches the workflow:
+
+#### Android Studio QR Flow
+
+Use this when Android Studio on the host is the tool that will manage the device connection.
+
+1. In Android Studio, choose **Pair Devices Using Wi-Fi**.
+2. On the phone, choose **Pair device with QR code**.
+3. Scan the QR code shown by Android Studio.
+
+This is convenient for Android Studio users, but it pairs the phone with the host-side Android Studio/ADB workflow. It does not automatically pair the container's own ADB server.
+
+#### Dev Container Pairing-Code Flow
+
+Use this when the container should manage the device connection.
+
+1. On the phone, choose the pairing-code option and note the shown IP address, pairing port, and code.
+2. From the Dev Container, run:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh pair-device <ip:pairing-port>
+```
+
+3. After pairing, connect to the device endpoint shown by the phone:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh connect-device <ip:connect-port>
+```
+
+4. Confirm visibility:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh devices
+```
+
+If automatic discovery does not reconnect the phone after pairing, use `connect-device` again with the IP and connection port shown by the phone.
+
+The wireless debugging connection port can change between sessions. Always use the current main port shown on the phone, and treat `devices` output as the source of truth after connection.
+
+If pairing fails, check whether the container can reach the phone:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh network-check <ip>
+bash .devcontainer/scripts/android-dev.sh network-check <ip> <pairing-port>
+```
+
+`network-check` can also be useful from the host shell because it only needs network tools. Commands such as `pair-device`, `connect-device`, and `devices` require ADB, so run them inside the Dev Container unless Android platform-tools are installed on the host too.
+
+### USB Notes by Host OS
+
+USB remains useful, especially for older devices, but it is host-dependent.
 
 ### Windows
 
@@ -556,19 +680,25 @@ The container includes ADB, but the host OS must expose the device first.
 After host setup, verify from the container:
 
 ```bash
-adb devices
+bash .devcontainer/scripts/android-dev.sh devices
 ```
 
 Then install an app with the project task that matches the project layout:
 
 ```bash
-./gradlew installDebug
+bash .devcontainer/scripts/android-dev.sh install-debug
 ```
 
 or, for some Kotlin Multiplatform projects:
 
 ```bash
 ./gradlew :composeApp:installDebug
+```
+
+If multiple authorized devices are available, `install-debug` asks which device to target. To install and launch a standard Android app in one step, use the package/application ID:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh run-debug com.example.myapp
 ```
 
 ---
@@ -590,11 +720,62 @@ Suggested flow:
 3. From inside the Dev Container, run:
 
 ```bash
-adb devices
-./gradlew installDebug
+bash .devcontainer/scripts/android-dev.sh devices
+bash .devcontainer/scripts/android-dev.sh install-debug
 ```
 
 Use emulator packages inside the container only when a team has a specific reason to manage AVD assets there.
+
+---
+
+## Start a New Android Project
+
+Android's official project-creation flow is still centered on Android Studio. The Dev Container is strongest once a project already exists and includes the Gradle wrapper that Android command-line builds use.
+
+### Option 1: Create with Android Studio, Then Use the Container
+
+1. Create the Android project in Android Studio.
+2. Close the project after generation.
+3. Copy this repository's `.devcontainer/` directory into the new project root.
+4. Open the new project in the Dev Container.
+5. From inside the container, run:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh doctor
+bash .devcontainer/scripts/android-dev.sh tasks
+bash .devcontainer/scripts/android-dev.sh build
+```
+
+### Option 2: Start from an Existing Repository or Template
+
+From inside the Dev Container workspace, clone the project or starter template you want to use:
+
+```bash
+git clone <repository-url> my-android-app
+cd my-android-app
+```
+
+Then copy the Dev Container files into that project if they are not already present and run:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh doctor
+bash .devcontainer/scripts/android-dev.sh build
+```
+
+### Why There Is No Built-In `new-project` Command Yet
+
+The Android command-line workflow officially starts from an Android project that already has its Gradle wrapper. A future version of this repository could add its own starter-template generator, but that would be a project-specific scaffold maintained here rather than an official Android CLI feature.
+
+For a CLI-created project that feels as complete as Android Studio's Empty Activity template, this repository should eventually provide and maintain a versioned starter template containing:
+
+* Gradle wrapper files
+* Android Gradle Plugin and Kotlin setup
+* app module structure
+* `AndroidManifest.xml`
+* a starter `MainActivity`
+* resources and theme files
+
+Until that template exists, the most reliable documented path is still to create the first project with Android Studio or start from an existing maintained template, then continue all daily work inside the Dev Container.
 
 ---
 

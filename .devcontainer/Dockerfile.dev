@@ -17,6 +17,7 @@ ARG USER_GID=1000
 # Android tools expect both the SDK root variables and executable paths to exist.
 ENV ANDROID_SDK_ROOT=/opt/android-sdk \
     ANDROID_HOME=/opt/android-sdk \
+    ANDROID_SDK_PROFILE=${ANDROID_SDK_PROFILE} \
     PATH=/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:${PATH}
 
 # Install only the small host utilities needed to fetch SDKs and work with projects.
@@ -26,6 +27,8 @@ RUN apt-get update \
         ca-certificates \
         curl \
         git \
+        iputils-ping \
+        netcat-openbsd \
         openssh-client \
         unzip \
         zip \

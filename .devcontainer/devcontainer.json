@@ -15,7 +15,7 @@
   "mounts": [
     "source=android-devcontainer-gradle-cache,target=/home/android/.gradle,type=volume"
   ],
-  "postCreateCommand": "bash .devcontainer/scripts/verify-android-env.sh",
+  "postCreateCommand": "bash .devcontainer/scripts/android-dev.sh doctor",
   "customizations": {
     "vscode": {
       "extensions": [
