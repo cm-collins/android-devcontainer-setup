@@ -493,8 +493,10 @@ Available commands:
 | `pair-device` | Pair a phone for wireless debugging |
 | `connect-device` | Connect to a paired wireless phone |
 | `network-check` | Check whether the container can reach a phone IP and optional port |
+| `init` | Interactively create and build a new Android app |
 | `new-app` | Create a basic Android app scaffold with a Kotlin `MainActivity` |
 | `project` | Run another command inside a project directory from the current shell |
+| `watch-gradle` | Watch Gradle files and prompt for sync checks |
 | `install-debug` | Interactively choose a device and install the debug build |
 | `run-debug` | Interactively choose a device, install the debug build, and launch an application ID |
 | `tasks` | Show Gradle tasks for the current project |
@@ -734,22 +736,32 @@ Use emulator packages inside the container only when a team has a specific reaso
 
 The Dev Container includes a small maintained starter scaffold for developers who want to begin from the terminal.
 
-### Option 1: Create from the Dev Container
+### Option 1: Create Interactively from the Dev Container
+
+From inside the Dev Container, run:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh init
+```
+
+The interactive flow asks for an app name, suggests a project directory and application ID, validates the answers, asks for confirmation, creates the project, generates the Gradle wrapper, and immediately runs a full build with the Gradle output visible in the terminal.
+
+When the command finishes successfully, the app is already built and ready for device setup and installation.
+
+### Option 2: Create Non-Interactively from the Dev Container
 
 From inside the Dev Container, run:
 
 ```bash
 bash .devcontainer/scripts/android-dev.sh new-app my-android-app com.example.myapp "My Android App"
 cd my-android-app
-bash .devcontainer/scripts/android-dev.sh doctor
-bash .devcontainer/scripts/android-dev.sh build
 ```
 
 If you want to stay in the current directory instead of changing into the new app immediately, use:
 
 ```bash
-bash .devcontainer/scripts/android-dev.sh project my-android-app doctor
-bash .devcontainer/scripts/android-dev.sh project my-android-app build
+bash .devcontainer/scripts/android-dev.sh project my-android-app devices
+bash .devcontainer/scripts/android-dev.sh project my-android-app run-debug com.example.myapp
 ```
 
 The generated starter includes:
@@ -762,11 +774,19 @@ The generated starter includes:
 * starter string/theme resources
 * a copy of this `.devcontainer/` setup
 
-The command downloads Gradle once in order to generate the wrapper for the new project.
+Both creation commands download Gradle once in order to generate the wrapper for the new project, then run the full build automatically.
 
 After `new-app`, project-specific commands must run from the generated project root or through the `project` helper. Running `build` from the template repository root still fails intentionally because the template itself is not an Android app.
 
-### Option 2: Create with Android Studio, Then Use the Container
+### Workspace Placement and Reopening
+
+The generated project receives its own `.devcontainer/` directory, so it can become an independent project after creation.
+
+If you want the new app to live beside this template rather than inside it, create it from a host-side parent workspace or from a Dev Container session that has that parent directory mounted. The core CLI stays editor-neutral; automatically opening a new editor window and choosing **Reopen in Container** is editor-specific behavior handled differently by VS Code, Cursor, and JetBrains products.
+
+For VS Code or Cursor users, after creating a separate project folder, open that folder and use **Dev Containers: Reopen in Container**. JetBrains users can open the generated project through their Dev Container flow. Terminal-only users can enter the generated directory and continue with the same shared commands.
+
+### Option 3: Create with Android Studio, Then Use the Container
 
 1. Create the Android project in Android Studio.
 2. Close the project after generation.
@@ -780,7 +800,7 @@ bash .devcontainer/scripts/android-dev.sh tasks
 bash .devcontainer/scripts/android-dev.sh build
 ```
 
-### Option 3: Start from an Existing Repository or Template
+### Option 4: Start from an Existing Repository or Template
 
 From inside the Dev Container workspace, clone the project or starter template you want to use:
 
@@ -799,6 +819,28 @@ bash .devcontainer/scripts/android-dev.sh build
 ### Scope of the Built-In Scaffold
 
 Android's official project-creation flow is still centered on Android Studio. The `new-app` command is a maintained starter owned by this repository, designed to give terminal users a clean basic app with a `MainActivity`, not to replace every Android Studio project template.
+
+---
+
+## Watch Gradle Configuration Changes
+
+Android Studio shows a sync prompt when Gradle configuration files change. Terminal-first users can use:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh watch-gradle
+```
+
+The watcher monitors common Gradle configuration files, logs changes to `.android-dev/logs/gradle-watch.log`, and asks whether to run a lightweight Gradle sync check:
+
+```bash
+./gradlew help
+```
+
+To run the sync check automatically after each detected change:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh watch-gradle --auto
+```
 
 ---
 

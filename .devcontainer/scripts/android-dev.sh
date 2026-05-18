@@ -15,8 +15,10 @@ Commands:
   pair-device    Pair a wireless device: pair-device <ip:port>
   connect-device Connect to a paired wireless device: connect-device <ip:port>
   network-check  Check phone reachability: network-check <ip> [port]
+  init           Interactively create and build a new Android app
   new-app        Create a basic Android app: new-app <directory> <application-id> [app-name]
   project        Run a command in a project: project <directory> <command> [args...]
+  watch-gradle   Watch Gradle files and offer sync checks: watch-gradle [--auto]
   install-debug  Interactively choose a device and run ./gradlew installDebug
   run-debug      Install and launch an app: run-debug <application-id>
   tasks          Show Gradle tasks available in the current project
@@ -49,22 +51,62 @@ to_package_path() {
   printf '%s\n' "${1//./\/}"
 }
 
-validate_application_id() {
+is_valid_application_id() {
   local application_id="$1"
-  if [[ ! "${application_id}" =~ ^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$ ]]; then
+  [[ "${application_id}" =~ ^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$ ]]
+}
+
+require_valid_application_id() {
+  local application_id="$1"
+  if ! is_valid_application_id "${application_id}"; then
     echo "Invalid application ID: ${application_id}" >&2
     echo "Use a lowercase reverse-domain ID such as com.example.myapp." >&2
     exit 1
   fi
 }
 
-validate_app_name() {
+is_valid_app_name() {
   local app_name="$1"
-  if [[ ! "${app_name}" =~ ^[A-Za-z][A-Za-z0-9[:space:]_-]*$ ]]; then
+  [[ "${app_name}" =~ ^[A-Za-z][A-Za-z0-9[:space:]_-]*$ ]]
+}
+
+require_valid_app_name() {
+  local app_name="$1"
+  if ! is_valid_app_name "${app_name}"; then
     echo "Invalid app name: ${app_name}" >&2
     echo "Use letters, numbers, spaces, underscores, or hyphens, starting with a letter." >&2
     exit 1
   fi
+}
+
+slugify() {
+  printf '%s\n' "$1" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//'
+}
+
+to_application_segment() {
+  local segment
+  segment="$(printf '%s\n' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+//g')"
+  if [[ ! "${segment}" =~ ^[a-z] ]]; then
+    segment="app${segment}"
+  fi
+  printf '%s\n' "${segment}"
+}
+
+confirm() {
+  local prompt="$1"
+  local default_answer="${2:-Y}"
+  local response
+  local suffix="[y/N]"
+
+  if [[ "${default_answer}" == "Y" ]]; then
+    suffix="[Y/n]"
+  fi
+
+  read -r -p "${prompt} ${suffix} " response
+  response="${response:-${default_answer}}"
+  [[ "${response}" =~ ^[Yy]$ ]]
 }
 
 escape_xml() {
@@ -237,18 +279,24 @@ generate_gradle_wrapper() {
   rm -rf "${temp_dir}"
 }
 
-new_app() {
-  if [[ $# -lt 3 || $# -gt 4 ]]; then
-    echo "Usage: bash .devcontainer/scripts/android-dev.sh new-app <directory> <application-id> [app-name]" >&2
-    exit 1
-  fi
+build_generated_app() {
+  local target_dir="$1"
 
-  local target_dir="$2"
-  local application_id="$3"
-  local app_name="${4:-$(basename "${target_dir}")}"
+  echo
+  echo "Building ${target_dir}..."
+  (
+    cd "${target_dir}"
+    ./gradlew build
+  )
+}
 
-  validate_application_id "${application_id}"
-  validate_app_name "${app_name}"
+create_app() {
+  local target_dir="$1"
+  local application_id="$2"
+  local app_name="$3"
+
+  require_valid_application_id "${application_id}"
+  require_valid_app_name "${app_name}"
 
   if [[ -e "${target_dir}" ]] && [[ -n "$(find "${target_dir}" -mindepth 1 -maxdepth 1 2>/dev/null)" ]]; then
     echo "Target directory already exists and is not empty: ${target_dir}" >&2
@@ -259,20 +307,83 @@ new_app() {
   write_new_app_files "${target_dir}" "${application_id}" "${app_name}"
   copy_devcontainer_files "${target_dir}"
   generate_gradle_wrapper "${target_dir}"
+  build_generated_app "${target_dir}"
 
   cat <<EOF
 
 Created Android app in ${target_dir}
+Build completed successfully.
 
 Next steps:
   cd ${target_dir}
-  bash .devcontainer/scripts/android-dev.sh doctor
-  bash .devcontainer/scripts/android-dev.sh build
+  bash .devcontainer/scripts/android-dev.sh devices
+  bash .devcontainer/scripts/android-dev.sh run-debug ${application_id}
 
 Or, from the current directory:
-  bash .devcontainer/scripts/android-dev.sh project ${target_dir} doctor
-  bash .devcontainer/scripts/android-dev.sh project ${target_dir} build
+  bash .devcontainer/scripts/android-dev.sh project ${target_dir} devices
+  bash .devcontainer/scripts/android-dev.sh project ${target_dir} run-debug ${application_id}
 EOF
+}
+
+new_app() {
+  if [[ $# -lt 3 || $# -gt 4 ]]; then
+    echo "Usage: bash .devcontainer/scripts/android-dev.sh new-app <directory> <application-id> [app-name]" >&2
+    exit 1
+  fi
+
+  local target_dir="$2"
+  local application_id="$3"
+  local app_name="${4:-$(basename "${target_dir}")}"
+
+  create_app "${target_dir}" "${application_id}" "${app_name}"
+}
+
+init_app() {
+  local app_name
+  local target_dir
+  local application_id
+  local suggested_dir
+  local suggested_application_id
+
+  while true; do
+    read -r -p "App name: " app_name
+    if is_valid_app_name "${app_name}"; then
+      break
+    fi
+    echo "Invalid app name: ${app_name}" >&2
+    echo "Use letters, numbers, spaces, underscores, or hyphens, starting with a letter." >&2
+  done
+
+  suggested_dir="$(slugify "${app_name}")"
+  suggested_application_id="com.example.$(to_application_segment "${app_name}")"
+
+  read -r -p "Project directory [${suggested_dir}]: " target_dir
+  target_dir="${target_dir:-${suggested_dir}}"
+
+  while true; do
+    read -r -p "Application ID [${suggested_application_id}]: " application_id
+    application_id="${application_id:-${suggested_application_id}}"
+    if is_valid_application_id "${application_id}"; then
+      break
+    fi
+    echo "Invalid application ID: ${application_id}" >&2
+    echo "Use a lowercase reverse-domain ID such as com.example.myapp." >&2
+  done
+
+  cat <<EOF
+
+Project summary:
+  App name:       ${app_name}
+  Directory:      ${target_dir}
+  Application ID: ${application_id}
+EOF
+
+  if ! confirm "Create and build this project?"; then
+    echo "Canceled."
+    exit 0
+  fi
+
+  create_app "${target_dir}" "${application_id}" "${app_name}"
 }
 
 run_in_project() {
@@ -315,6 +426,60 @@ network_check() {
     echo "Checking TCP port ${port}..."
     nc -vz "${ip}" "${port}"
   fi
+}
+
+gradle_watch_paths() {
+  find . \
+    -path './.gradle' -prune -o \
+    -path './.git' -prune -o \
+    \( -name 'settings.gradle.kts' -o -name 'settings.gradle' -o -name 'build.gradle.kts' -o -name 'build.gradle' -o -name 'gradle.properties' -o -name 'libs.versions.toml' \) \
+    -print
+}
+
+sync_check() {
+  echo "Running Gradle sync check..."
+  run_gradle help
+}
+
+watch_gradle() {
+  require_gradle_wrapper
+
+  if ! command -v inotifywait >/dev/null 2>&1; then
+    echo "inotifywait is not available in the current shell." >&2
+    echo "Rebuild the Dev Container so inotify-tools is installed." >&2
+    exit 1
+  fi
+
+  local mode="${2:-}"
+  if [[ -n "${mode}" && "${mode}" != "--auto" ]]; then
+    echo "Usage: bash .devcontainer/scripts/android-dev.sh watch-gradle [--auto]" >&2
+    exit 1
+  fi
+
+  mkdir -p .android-dev/logs
+  local log_file=".android-dev/logs/gradle-watch.log"
+  local watched_files=()
+  mapfile -t watched_files < <(gradle_watch_paths)
+
+  if [[ "${#watched_files[@]}" -eq 0 ]]; then
+    echo "No Gradle configuration files found to watch." >&2
+    exit 1
+  fi
+
+  echo "Watching Gradle files. Press Ctrl-C to stop."
+  printf '  %s\n' "${watched_files[@]}"
+
+  while true; do
+    local changed_file
+    changed_file="$(inotifywait -q -e close_write,move,create --format '%w%f' "${watched_files[@]}")"
+    printf '%s Gradle file changed: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "${changed_file}" | tee -a "${log_file}"
+
+    if [[ "${mode}" == "--auto" ]] || confirm "Run Gradle sync check now?"; then
+      sync_check 2>&1 | tee -a "${log_file}"
+    fi
+
+    mapfile -t watched_files < <(gradle_watch_paths)
+  done
 }
 
 show_devices() {
@@ -470,11 +635,17 @@ EOF
   network-check)
     network_check "$@"
     ;;
+  init)
+    init_app
+    ;;
   new-app)
     new_app "$@"
     ;;
   project)
     run_in_project "$@"
+    ;;
+  watch-gradle)
+    watch_gradle "$@"
     ;;
   install-debug)
     install_debug
