@@ -534,11 +534,14 @@ Available commands:
 | `new-app` | Create a basic Android app scaffold with a Kotlin `MainActivity` |
 | `project` | Run another command inside a project directory from the current shell |
 | `watch-gradle` | Watch Gradle files and prompt for sync checks |
+| `logs` | List, print, or tail command logs |
 | `install-debug` | Interactively choose a device and install the debug build |
 | `run-debug` | Interactively choose a device, install the debug build, and launch the detected app |
 | `tasks` | Show Gradle tasks for the current project |
 
 These commands wrap the same Gradle wrapper and ADB workflows used by Android projects, so terminal users and IDE users can share one vocabulary.
+
+Command failures include structured error codes and log paths. See [Troubleshooting Errors and Logs](docs/troubleshooting-errors.md) for the error format and log commands.
 
 ---
 
