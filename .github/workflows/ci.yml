@@ -12,17 +12,35 @@ permissions:
 
 jobs:
   shell:
-    name: Shell validation
+    name: Shell validation and lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
       - name: Check shell syntax
         run: bash -n .devcontainer/scripts/*.sh
 
+      - name: Run ShellCheck
+        run: shellcheck .devcontainer/scripts/*.sh
+
       - name: Check helper usage
         run: bash .devcontainer/scripts/android-dev.sh --help
+
+  docs:
+    name: Documentation lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run markdownlint
+        run: npx --yes markdownlint-cli2 "**/*.md"
 
   docker:
     name: Docker build
@@ -36,4 +54,14 @@ jobs:
           docker build \
             --file .devcontainer/Dockerfile.dev \
             --build-arg ANDROID_SDK_PROFILE=base \
+            --tag android-devcontainer-setup:ci \
             .devcontainer
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: android-devcontainer-setup:ci
+          severity: HIGH,CRITICAL
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true

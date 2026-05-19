@@ -9,3 +9,7 @@ updates:
     directory: "/.devcontainer"
     schedule:
       interval: "weekly"
+    ignore:
+      # The Android baseline intentionally stays on JDK 17 for broad Android
+      # Gradle Plugin compatibility. Review base JDK upgrades manually.
+      - dependency-name: "eclipse-temurin"

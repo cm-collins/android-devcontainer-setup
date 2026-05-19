@@ -56,6 +56,9 @@ The repository is expected to use branch protection on `main` once CI and
 CODEOWNERS are merged. Maintainers should require pull requests, passing CI,
 and CODEOWNERS review for sensitive paths before merging changes.
 
+See [docs/maintainer-security-triage.md](docs/maintainer-security-triage.md)
+for the maintainer-side security review process.
+
 ## Deterministic Behavior
 
 The CLI should avoid trial-and-error behavior. Prefer explicit inputs,

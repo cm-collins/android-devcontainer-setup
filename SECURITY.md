@@ -21,6 +21,9 @@ repository. If it is not enabled, contact the maintainer privately and include:
 The maintainer will acknowledge valid reports, investigate the issue, and
 coordinate a fix before public disclosure when appropriate.
 
+Maintainers should follow the triage process in
+[docs/maintainer-security-triage.md](docs/maintainer-security-triage.md).
+
 ## Security Scope
 
 Security-sensitive areas include:

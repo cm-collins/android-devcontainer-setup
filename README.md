@@ -1040,6 +1040,8 @@ Before contributing, read:
 * [Code of Conduct](CODE_OF_CONDUCT.md)
 * [Security Policy](SECURITY.md)
 * [Android Workstation CLI Plan](docs/android-workstation-cli-plan.md)
+* [Release Process](docs/release-process.md)
+* [Changelog](CHANGELOG.md)
 
 Please do not commit secrets, signing keys, keystores, tokens, generated logs,
 or machine-specific files. Security-sensitive changes to the Dev Container,

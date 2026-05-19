@@ -3,7 +3,7 @@
 # Android's Linux host tools are x86_64-oriented, so keep the container on
 # linux/amd64 even when Docker is running on an ARM-based desktop host.
 ARG BASE_PLATFORM=linux/amd64
-FROM --platform=${BASE_PLATFORM} eclipse-temurin:25-jdk-jammy
+FROM --platform=${BASE_PLATFORM} eclipse-temurin:17-jdk-jammy
 
 # Keep the Android command-line tools pinned so image rebuilds stay reproducible.
 # The UID/GID args let the container user line up with a typical Linux host user.
