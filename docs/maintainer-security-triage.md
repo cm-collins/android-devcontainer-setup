@@ -50,3 +50,13 @@ For security-sensitive changes, confirm:
 * Logs avoid secrets, tokens, signing keys, and local credential files.
 * Generated projects ignore local files such as `local.properties`, keystores,
   logs, Gradle caches, and build outputs.
+
+## Vulnerability Exceptions
+
+Container image scan exceptions must be narrow and documented in `.trivyignore`.
+Only ignore findings when they are in upstream tooling that the project does
+not patch directly, the affected component is not used as an application
+runtime dependency, and a follow-up hardening issue remains open.
+
+Review `.trivyignore` whenever Android command-line tools, the base image, or
+SDK package versions change.

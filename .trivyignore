@@ -1,0 +1,11 @@
+# Known findings in Google's Android command-line tools archive.
+# These libraries are bundled inside SDK tooling jars and are not project
+# application dependencies. Keep these exceptions narrow and revisit them when
+# ANDROID_CMDLINE_TOOLS_VERSION changes.
+
+# com.google.protobuf:protobuf-java in kotlin-compiler-mvn.jar
+CVE-2021-22569
+CVE-2024-7254
+
+# org.bouncycastle:bcprov-jdk18on in Android command-line tools
+CVE-2026-5598
