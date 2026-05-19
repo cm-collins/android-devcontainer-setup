@@ -18,6 +18,13 @@
   "postCreateCommand": "bash .devcontainer/scripts/android-dev.sh doctor",
   "customizations": {
     "vscode": {
+      "settings": {
+        "kotlin.diagnostics.enabled": false,
+        "java.configuration.updateBuildConfiguration": "automatic",
+        "java.import.gradle.enabled": true,
+        "java.import.gradle.wrapper.enabled": true,
+        "gradle.nestedProjects": true
+      },
       "extensions": [
         "fwcd.kotlin",
         "redhat.java",
