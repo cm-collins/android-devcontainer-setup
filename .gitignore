@@ -1,1 +1,5 @@
 .vscode/
+.android-dev/logs/
+*.keystore
+*.jks
+local.properties

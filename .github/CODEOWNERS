@@ -1,0 +1,22 @@
+# Default ownership
+* @cm-collins
+
+# Dev Container and Android environment
+/.devcontainer/ @cm-collins
+
+# GitHub Actions and repository automation
+/.github/ @cm-collins
+
+# Security-sensitive docs and policies
+/SECURITY.md @cm-collins
+/CODE_OF_CONDUCT.md @cm-collins
+/CONTRIBUTING.md @cm-collins
+/LICENSE @cm-collins
+/.github/CODEOWNERS @cm-collins
+
+# CLI scripts
+/.devcontainer/scripts/ @cm-collins
+
+# Release and roadmap files
+/CHANGELOG.md @cm-collins
+/docs/android-workstation-cli-plan.md @cm-collins

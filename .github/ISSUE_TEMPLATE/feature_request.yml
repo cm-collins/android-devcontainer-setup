@@ -1,0 +1,44 @@
+name: Feature request
+description: Suggest an improvement to the Dev Container or workstation CLI
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What should this feature help developers do?
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Proposed workflow
+      description: What command, prompt, or documentation should exist?
+      render: shell
+  - type: textarea
+    id: value
+    attributes:
+      label: Developer value
+      description: Who benefits from this and why?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Project templates
+        - Device workflow
+        - Emulator workflow
+        - SDK packages or plugins
+        - Logging or errors
+        - Security or governance
+        - Documentation
+        - Other
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints or risks
+      description: Cross-OS, security, performance, or compatibility concerns.

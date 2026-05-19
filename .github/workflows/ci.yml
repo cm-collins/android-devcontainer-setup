@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shell:
+    name: Shell validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check shell syntax
+        run: bash -n .devcontainer/scripts/*.sh
+
+      - name: Check helper usage
+        run: bash .devcontainer/scripts/android-dev.sh --help
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build base Dev Container image
+        run: |
+          docker build \
+            --file .devcontainer/Dockerfile.dev \
+            --build-arg ANDROID_SDK_PROFILE=base \
+            .devcontainer

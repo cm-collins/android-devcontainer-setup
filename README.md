@@ -1027,3 +1027,21 @@ This is especially useful for:
 * CI-aligned development workflows
 * Teams that want consistent local environments
 * Developers who prefer not to install many SDKs directly on their machines
+
+---
+
+## Open Source and Security
+
+This project is open source under the [MIT License](LICENSE).
+
+Before contributing, read:
+
+* [Contributing Guide](CONTRIBUTING.md)
+* [Code of Conduct](CODE_OF_CONDUCT.md)
+* [Security Policy](SECURITY.md)
+* [Android Workstation CLI Plan](docs/android-workstation-cli-plan.md)
+
+Please do not commit secrets, signing keys, keystores, tokens, generated logs,
+or machine-specific files. Security-sensitive changes to the Dev Container,
+GitHub Actions, helper scripts, generated templates, or release files require
+maintainer review through the repository CODEOWNERS rules.
