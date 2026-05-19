@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+LOG_FILE=""
+HANDLED_FAILURE=0
+
 usage() {
   cat <<'EOF'
 Usage: bash .devcontainer/scripts/android-dev.sh <command>
@@ -19,32 +22,234 @@ Commands:
   new-app        Create a basic Android app: new-app <directory> <application-id> [app-name]
   project        Run a command in a project: project <directory> <command> [args...]
   watch-gradle   Watch Gradle files and offer sync checks: watch-gradle [--auto]
+  logs           Show command logs: logs [latest|tail]
   install-debug  Interactively choose a device and run ./gradlew installDebug
   run-debug      Install and launch the app: run-debug [application-id]
   tasks          Show Gradle tasks available in the current project
 EOF
 }
 
+timestamp() {
+  date '+%Y-%m-%d %H:%M:%S'
+}
+
+log_slug() {
+  printf '%s\n' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//'
+}
+
+init_log() {
+  local command_name="$1"
+  local log_dir
+  local log_name
+
+  log_dir="$(pwd)/.android-dev/logs"
+  mkdir -p "${log_dir}" || {
+    echo "FATAL [ANDROID-LOG-001]" >&2
+    echo "Area: Command logging" >&2
+    echo "Problem: Could not create ${log_dir}." >&2
+    echo "Why it matters: Command output cannot be captured for troubleshooting." >&2
+    echo "Next step: Check directory permissions for the current workspace." >&2
+    exit 1
+  }
+
+  log_name="$(log_slug "${command_name}")"
+  LOG_FILE="${log_dir}/${log_name}-$(date '+%Y%m%d-%H%M%S').log"
+  {
+    echo "Command: bash .devcontainer/scripts/android-dev.sh ${command_name}"
+    echo "Started: $(timestamp)"
+    echo "Working directory: $(pwd)"
+    echo
+  } >"${LOG_FILE}"
+  echo "Log: ${LOG_FILE}"
+}
+
+log_to_file() {
+  if [[ -n "${LOG_FILE}" ]]; then
+    printf '%s\n' "$*" >>"${LOG_FILE}"
+  fi
+}
+
+info() {
+  printf '%s\n' "$*"
+  log_to_file "INFO $(timestamp) $*"
+}
+
+warn() {
+  local code="$1"
+  local message="$2"
+  local next_step="${3:-}"
+
+  {
+    echo "WARNING [${code}]"
+    echo "${message}"
+    if [[ -n "${next_step}" ]]; then
+      echo "Next step: ${next_step}"
+    fi
+  } >&2
+  log_to_file "WARNING [${code}] ${message}"
+  if [[ -n "${next_step}" ]]; then
+    log_to_file "Next step: ${next_step}"
+  fi
+}
+
+fatal() {
+  local code="$1"
+  local area="$2"
+  local problem="$3"
+  local why="$4"
+  local next_step="$5"
+  local exit_code="${6:-1}"
+
+  HANDLED_FAILURE=1
+  {
+    echo "ERROR [${code}]"
+    echo "Area: ${area}"
+    echo "Problem: ${problem}"
+    echo "Why it matters: ${why}"
+    echo "Next step: ${next_step}"
+    if [[ -n "${LOG_FILE}" ]]; then
+      echo "Log: ${LOG_FILE}"
+    fi
+  } >&2
+  log_to_file "ERROR [${code}]"
+  log_to_file "Area: ${area}"
+  log_to_file "Problem: ${problem}"
+  log_to_file "Why it matters: ${why}"
+  log_to_file "Next step: ${next_step}"
+  exit "${exit_code}"
+}
+
+handle_unexpected_error() {
+  local exit_code="$1"
+  local command_text="$2"
+  local line_number="$3"
+
+  if [[ "${HANDLED_FAILURE}" == "1" ]]; then
+    return
+  fi
+
+  {
+    echo "FATAL [ANDROID-CONFIG-999]"
+    echo "Area: Unexpected CLI failure"
+    echo "Problem: Command failed at line ${line_number}: ${command_text}"
+    echo "Why it matters: The CLI stopped before it could finish the requested workflow."
+    echo "Next step: Review the log, then run 'bash .devcontainer/scripts/android-dev.sh doctor'."
+    if [[ -n "${LOG_FILE}" ]]; then
+      echo "Log: ${LOG_FILE}"
+    fi
+  } >&2
+  log_to_file "FATAL [ANDROID-CONFIG-999] line ${line_number}: ${command_text} exited ${exit_code}"
+  exit "${exit_code}"
+}
+
+run_logged() {
+  local label="$1"
+  shift
+
+  info "Running ${label}..."
+  log_to_file "\$ $*"
+  set +e
+  "$@" 2>&1 | tee -a "${LOG_FILE:-/dev/null}"
+  local status
+  status="${PIPESTATUS[0]}"
+  set -e
+
+  if [[ "${status}" -ne 0 ]]; then
+    log_to_file "Command failed with exit code ${status}: $*"
+  fi
+  return "${status}"
+}
+
 require_gradle_wrapper() {
   if [[ ! -x ./gradlew ]]; then
-    echo "Missing executable Gradle wrapper at ./gradlew." >&2
-    echo "Run this command from an Android project root that includes the Gradle wrapper." >&2
-    echo "This template repository does not include an app project by itself." >&2
-    exit 1
+    fatal \
+      "ANDROID-PROJECT-001" \
+      "Android project discovery" \
+      "Missing executable Gradle wrapper at ./gradlew." \
+      "Project commands must run from an Android project root that includes the Gradle wrapper." \
+      "Run this command inside a generated Android project, or use 'bash .devcontainer/scripts/android-dev.sh project <directory> <command>'."
   fi
 }
 
 require_adb() {
   if ! command -v adb >/dev/null 2>&1; then
-    echo "ADB is not available in the current shell." >&2
-    echo "Run this command inside the Dev Container, or install Android platform-tools on the host." >&2
-    exit 1
+    fatal \
+      "ANDROID-DEVICE-001" \
+      "Android device tooling" \
+      "ADB is not available in the current shell." \
+      "Device and emulator commands require Android platform-tools." \
+      "Run this command inside the Dev Container, or install Android platform-tools on the host."
   fi
 }
 
 run_gradle() {
   require_gradle_wrapper
-  ./gradlew "$@"
+  if ! run_logged "Gradle: ./gradlew $*" ./gradlew "$@"; then
+    fatal \
+      "ANDROID-GRADLE-001" \
+      "Gradle execution" \
+      "Gradle command failed: ./gradlew $*" \
+      "The requested build, test, lint, install, or sync workflow did not complete." \
+      "Review the Gradle output in the log and fix the reported project error."
+  fi
+}
+
+latest_log_file() {
+  if [[ ! -d .android-dev/logs ]]; then
+    return 0
+  fi
+  find .android-dev/logs -maxdepth 1 -type f -name '*.log' -printf '%T@ %p\n' 2>/dev/null \
+    | sort -nr \
+    | sed -n 's/^[^ ]* //p; q'
+}
+
+logs_command() {
+  local mode="${2:-list}"
+  local latest
+
+  case "${mode}" in
+    list)
+      if [[ ! -d .android-dev/logs ]]; then
+        warn \
+          "ANDROID-LOG-002" \
+          "No log directory exists yet." \
+          "Run any major command such as doctor, build, devices, or run-debug to create logs."
+        return
+      fi
+      find .android-dev/logs -maxdepth 1 -type f -name '*.log' | sort
+      ;;
+    latest)
+      latest="$(latest_log_file)"
+      if [[ -z "${latest}" ]]; then
+        warn \
+          "ANDROID-LOG-003" \
+          "No command logs were found." \
+          "Run a command such as doctor, build, devices, or run-debug first."
+        return
+      fi
+      printf '%s\n' "${latest}"
+      ;;
+    tail)
+      latest="$(latest_log_file)"
+      if [[ -z "${latest}" ]]; then
+        warn \
+          "ANDROID-LOG-003" \
+          "No command logs were found." \
+          "Run a command such as doctor, build, devices, or run-debug first."
+        return
+      fi
+      echo "Tailing ${latest}. Press Ctrl-C to stop."
+      tail -f "${latest}"
+      ;;
+    *)
+      fatal \
+        "ANDROID-CONFIG-015" \
+        "Command usage" \
+        "Invalid logs option: ${mode}" \
+        "The logs command supports list, latest, and tail." \
+        "Run: bash .devcontainer/scripts/android-dev.sh logs [latest|tail]"
+      ;;
+  esac
 }
 
 detect_application_id() {
@@ -97,17 +302,24 @@ detect_application_id() {
   done
 
   if [[ "${#application_ids[@]}" -eq 0 ]]; then
-    echo "Could not detect an application ID from Gradle files." >&2
-    echo "Run: bash .devcontainer/scripts/android-dev.sh run-debug <application-id>" >&2
-    exit 1
+    fatal \
+      "ANDROID-PROJECT-002" \
+      "Android application discovery" \
+      "Could not detect an application ID from Gradle files." \
+      "The app cannot be launched without a known application ID." \
+      "Run 'bash .devcontainer/scripts/android-dev.sh run-debug <application-id>', or add project metadata in .android-dev/project.json later when that workflow exists."
   fi
 
   mapfile -t application_ids < <(printf '%s\n' "${application_ids[@]}" | sort -u)
   if [[ "${#application_ids[@]}" -gt 1 ]]; then
     echo "Multiple application IDs were found:" >&2
     printf '  %s\n' "${application_ids[@]}" >&2
-    echo "Run: bash .devcontainer/scripts/android-dev.sh run-debug <application-id>" >&2
-    exit 1
+    fatal \
+      "ANDROID-PROJECT-003" \
+      "Android application discovery" \
+      "Multiple application IDs were found." \
+      "The CLI will not guess which app should be launched." \
+      "Run 'bash .devcontainer/scripts/android-dev.sh run-debug <application-id>' with the application ID you want."
   fi
 
   printf '%s\n' "${application_ids[0]}"
@@ -144,8 +356,12 @@ select_project_root() {
       done
       read -r -p "Project number: " choice
       if [[ ! "${choice}" =~ ^[0-9]+$ ]] || (( choice < 1 || choice > ${#projects[@]} )); then
-        echo "Invalid project selection." >&2
-        exit 1
+        fatal \
+          "ANDROID-CONFIG-002" \
+          "Project selection" \
+          "Invalid project selection: ${choice}" \
+          "The CLI can only run a command in one of the listed project directories." \
+          "Run the command again and choose one of the displayed project numbers."
       fi
       printf '%s\n' "${projects[$((choice - 1))]}"
       ;;
@@ -164,9 +380,12 @@ is_valid_application_id() {
 require_valid_application_id() {
   local application_id="$1"
   if ! is_valid_application_id "${application_id}"; then
-    echo "Invalid application ID: ${application_id}" >&2
-    echo "Use a lowercase reverse-domain ID such as com.example.myapp." >&2
-    exit 1
+    fatal \
+      "ANDROID-CONFIG-001" \
+      "Application ID validation" \
+      "Invalid application ID: ${application_id}" \
+      "Android application IDs must be stable, valid package-style identifiers." \
+      "Use a lowercase reverse-domain ID such as com.example.myapp."
   fi
 }
 
@@ -178,9 +397,12 @@ is_valid_app_name() {
 require_valid_app_name() {
   local app_name="$1"
   if ! is_valid_app_name "${app_name}"; then
-    echo "Invalid app name: ${app_name}" >&2
-    echo "Use letters, numbers, spaces, underscores, or hyphens, starting with a letter." >&2
-    exit 1
+    fatal \
+      "ANDROID-CONFIG-003" \
+      "App name validation" \
+      "Invalid app name: ${app_name}" \
+      "The generated project needs a valid display name and Gradle project name." \
+      "Use letters, numbers, spaces, underscores, or hyphens, starting with a letter."
   fi
 }
 
@@ -370,16 +592,40 @@ generate_gradle_wrapper() {
 
   temp_dir="$(mktemp -d)"
 
-  echo "Downloading Gradle ${gradle_version} to generate the wrapper..."
-  curl -fsSLo "${temp_dir}/gradle.zip" "https://services.gradle.org/distributions/gradle-${gradle_version}-bin.zip"
-  unzip -q "${temp_dir}/gradle.zip" -d "${temp_dir}"
+  info "Downloading Gradle ${gradle_version} to generate the wrapper..."
+  if ! run_logged "Download Gradle ${gradle_version}" curl -fsSLo "${temp_dir}/gradle.zip" "https://services.gradle.org/distributions/gradle-${gradle_version}-bin.zip"; then
+    rm -rf "${temp_dir}"
+    fatal \
+      "ANDROID-GRADLE-002" \
+      "Gradle wrapper generation" \
+      "Could not download Gradle ${gradle_version}." \
+      "A generated project needs a Gradle wrapper before it can build consistently." \
+      "Check network access to services.gradle.org and retry the project creation command."
+  fi
+  if ! run_logged "Extract Gradle ${gradle_version}" unzip -q "${temp_dir}/gradle.zip" -d "${temp_dir}"; then
+    rm -rf "${temp_dir}"
+    fatal \
+      "ANDROID-GRADLE-003" \
+      "Gradle wrapper generation" \
+      "Could not extract Gradle ${gradle_version}." \
+      "The Gradle wrapper cannot be generated from an incomplete or invalid distribution archive." \
+      "Retry the project creation command; if it fails again, remove the target directory and check the log."
+  fi
 
   (
     cd "${target_dir}"
-    "${temp_dir}/gradle-${gradle_version}/bin/gradle" --no-daemon wrapper \
+    run_logged "Generate Gradle wrapper" "${temp_dir}/gradle-${gradle_version}/bin/gradle" --no-daemon wrapper \
       --gradle-version "${gradle_version}" \
       --distribution-type bin
-  )
+  ) || {
+    rm -rf "${temp_dir}"
+    fatal \
+      "ANDROID-GRADLE-004" \
+      "Gradle wrapper generation" \
+      "Gradle wrapper generation failed." \
+      "The generated project cannot build without wrapper files." \
+      "Review the log, remove the incomplete target directory if needed, and retry."
+  }
 
   rm -rf "${temp_dir}"
 }
@@ -388,7 +634,7 @@ build_generated_app() {
   local target_dir="$1"
 
   echo
-  echo "Building ${target_dir}..."
+  info "Building ${target_dir}..."
   (
     cd "${target_dir}"
     ./gradlew build
@@ -404,8 +650,12 @@ create_app() {
   require_valid_app_name "${app_name}"
 
   if [[ -e "${target_dir}" ]] && [[ -n "$(find "${target_dir}" -mindepth 1 -maxdepth 1 2>/dev/null)" ]]; then
-    echo "Target directory already exists and is not empty: ${target_dir}" >&2
-    exit 1
+    fatal \
+      "ANDROID-PROJECT-004" \
+      "Project creation" \
+      "Target directory already exists and is not empty: ${target_dir}" \
+      "Project creation must not overwrite existing files." \
+      "Choose an empty directory, remove the existing directory yourself, or run init again with a different project directory."
   fi
 
   mkdir -p "${target_dir}"
@@ -432,8 +682,12 @@ EOF
 
 new_app() {
   if [[ $# -lt 3 || $# -gt 4 ]]; then
-    echo "Usage: bash .devcontainer/scripts/android-dev.sh new-app <directory> <application-id> [app-name]" >&2
-    exit 1
+    fatal \
+      "ANDROID-CONFIG-004" \
+      "Command usage" \
+      "Invalid new-app arguments." \
+      "The non-interactive app creation workflow requires a directory and application ID." \
+      "Run: bash .devcontainer/scripts/android-dev.sh new-app <directory> <application-id> [app-name]"
   fi
 
   local target_dir="$2"
@@ -455,8 +709,10 @@ init_app() {
     if is_valid_app_name "${app_name}"; then
       break
     fi
-    echo "Invalid app name: ${app_name}" >&2
-    echo "Use letters, numbers, spaces, underscores, or hyphens, starting with a letter." >&2
+    warn \
+      "ANDROID-CONFIG-005" \
+      "Invalid app name: ${app_name}" \
+      "Use letters, numbers, spaces, underscores, or hyphens, starting with a letter."
   done
 
   suggested_dir="$(slugify "${app_name}")"
@@ -471,8 +727,10 @@ init_app() {
     if is_valid_application_id "${application_id}"; then
       break
     fi
-    echo "Invalid application ID: ${application_id}" >&2
-    echo "Use a lowercase reverse-domain ID such as com.example.myapp." >&2
+    warn \
+      "ANDROID-CONFIG-006" \
+      "Invalid application ID: ${application_id}" \
+      "Use a lowercase reverse-domain ID such as com.example.myapp."
   done
 
   cat <<EOF
@@ -493,16 +751,24 @@ EOF
 
 run_in_project() {
   if [[ $# -lt 3 ]]; then
-    echo "Usage: bash .devcontainer/scripts/android-dev.sh project <directory> <command> [args...]" >&2
-    exit 1
+    fatal \
+      "ANDROID-CONFIG-007" \
+      "Command usage" \
+      "Invalid project command arguments." \
+      "The project helper needs a target directory and a command to run." \
+      "Run: bash .devcontainer/scripts/android-dev.sh project <directory> <command> [args...]"
   fi
 
   local target_dir="$2"
   shift 2
 
   if [[ ! -d "${target_dir}" ]]; then
-    echo "Project directory does not exist: ${target_dir}" >&2
-    exit 1
+    fatal \
+      "ANDROID-PROJECT-005" \
+      "Project selection" \
+      "Project directory does not exist: ${target_dir}" \
+      "The CLI cannot run project commands in a missing directory." \
+      "Check the directory name or create a project with 'bash .devcontainer/scripts/android-dev.sh init'."
   fi
 
   (
@@ -513,23 +779,37 @@ run_in_project() {
 
 network_check() {
   if [[ $# -lt 2 || $# -gt 3 ]]; then
-    echo "Usage: bash .devcontainer/scripts/android-dev.sh network-check <ip> [port]" >&2
-    exit 1
+    fatal \
+      "ANDROID-CONFIG-008" \
+      "Command usage" \
+      "Invalid network-check arguments." \
+      "Network checks need a phone IP address and optionally a TCP port." \
+      "Run: bash .devcontainer/scripts/android-dev.sh network-check <ip> [port]"
   fi
 
   local ip="$2"
   local port="${3:-}"
 
-  echo "Pinging ${ip}..."
+  info "Pinging ${ip}..."
   if ! ping -c 1 "${ip}"; then
     echo
-    echo "Ping failed. Some phones or networks block ICMP, so a failed ping is not definitive by itself."
+    warn \
+      "ANDROID-DEVICE-003" \
+      "Ping failed. Some phones or networks block ICMP, so this is not definitive by itself." \
+      "If wireless debugging still fails, confirm the phone and workstation are on the same Wi-Fi network."
   fi
 
   if [[ -n "${port}" ]]; then
     echo
-    echo "Checking TCP port ${port}..."
-    nc -vz "${ip}" "${port}"
+    info "Checking TCP port ${port}..."
+    if ! run_logged "Check TCP port ${port}" nc -vz "${ip}" "${port}"; then
+      fatal \
+        "ANDROID-DEVICE-004" \
+        "Wireless device connectivity" \
+        "Could not connect to ${ip}:${port}." \
+        "ADB pairing or connection cannot work until the TCP port is reachable." \
+        "Use the current pairing or connection port shown on the phone and keep the Wireless debugging screen open."
+    fi
   fi
 }
 
@@ -542,7 +822,7 @@ gradle_watch_paths() {
 }
 
 sync_check() {
-  echo "Running Gradle sync check..."
+  info "Running Gradle sync check..."
   run_gradle help
 }
 
@@ -550,15 +830,22 @@ watch_gradle() {
   require_gradle_wrapper
 
   if ! command -v inotifywait >/dev/null 2>&1; then
-    echo "inotifywait is not available in the current shell." >&2
-    echo "Rebuild the Dev Container so inotify-tools is installed." >&2
-    exit 1
+    fatal \
+      "ANDROID-SDK-002" \
+      "Gradle file watching" \
+      "inotifywait is not available in the current shell." \
+      "The Gradle watcher depends on inotify-tools to detect file changes." \
+      "Rebuild the Dev Container so inotify-tools is installed."
   fi
 
   local mode="${2:-}"
   if [[ -n "${mode}" && "${mode}" != "--auto" ]]; then
-    echo "Usage: bash .devcontainer/scripts/android-dev.sh watch-gradle [--auto]" >&2
-    exit 1
+    fatal \
+      "ANDROID-CONFIG-009" \
+      "Command usage" \
+      "Invalid watch-gradle option: ${mode}" \
+      "The Gradle watcher only supports manual prompts or --auto mode." \
+      "Run: bash .devcontainer/scripts/android-dev.sh watch-gradle [--auto]"
   fi
 
   mkdir -p .android-dev/logs
@@ -567,11 +854,15 @@ watch_gradle() {
   mapfile -t watched_files < <(gradle_watch_paths)
 
   if [[ "${#watched_files[@]}" -eq 0 ]]; then
-    echo "No Gradle configuration files found to watch." >&2
-    exit 1
+    fatal \
+      "ANDROID-PROJECT-006" \
+      "Gradle file watching" \
+      "No Gradle configuration files found to watch." \
+      "The watcher needs known Gradle files such as settings.gradle.kts, build.gradle.kts, or gradle.properties." \
+      "Run this command from an Android project root."
   fi
 
-  echo "Watching Gradle files. Press Ctrl-C to stop."
+  info "Watching Gradle files. Press Ctrl-C to stop."
   printf '  %s\n' "${watched_files[@]}"
 
   while true; do
@@ -591,17 +882,15 @@ show_devices() {
   local output
   require_adb
   output="$(adb devices)"
+  log_to_file "$ adb devices"
+  log_to_file "${output}"
   printf '%s\n' "${output}"
 
   if ! grep -q $'\tdevice$' <<<"${output}"; then
-    cat <<'EOF'
-
-No authorized Android devices are visible to this container.
-For the most portable workflow, use Android wireless debugging:
-  1. Enable Wireless debugging on the phone.
-  2. Run: bash .devcontainer/scripts/android-dev.sh pair-device <ip:pairing-port>
-  3. Run: bash .devcontainer/scripts/android-dev.sh connect-device <ip:connect-port>
-EOF
+    warn \
+      "ANDROID-DEVICE-002" \
+      "No authorized Android devices are visible to this container." \
+      "Use wireless debugging: enable it on the phone, run pair-device with the pairing port, then run connect-device with the current connection port."
   fi
 }
 
@@ -618,9 +907,12 @@ select_device() {
 
   case "${#devices[@]}" in
     0)
-      echo "No authorized Android devices are available." >&2
-      echo "Run 'bash .devcontainer/scripts/android-dev.sh devices' for pairing guidance." >&2
-      exit 1
+      fatal \
+        "ANDROID-DEVICE-002" \
+        "Android device selection" \
+        "No authorized Android devices are available." \
+        "The app cannot be installed without a connected physical device or emulator." \
+        "Run 'bash .devcontainer/scripts/android-dev.sh devices' for pairing guidance."
       ;;
     1)
       printf '%s\n' "${devices[0]}"
@@ -633,8 +925,12 @@ select_device() {
       done
       read -r -p "Device number: " choice
       if [[ ! "${choice}" =~ ^[0-9]+$ ]] || (( choice < 1 || choice > ${#devices[@]} )); then
-        echo "Invalid device selection." >&2
-        exit 1
+        fatal \
+          "ANDROID-CONFIG-010" \
+          "Android device selection" \
+          "Invalid device selection: ${choice}" \
+          "The CLI can only install to one of the listed authorized devices." \
+          "Run the command again and choose one of the displayed device numbers."
       fi
       printf '%s\n' "${devices[$((choice - 1))]}"
       ;;
@@ -644,7 +940,7 @@ select_device() {
 install_debug() {
   local serial
   serial="$(select_device)"
-  echo "Using device: ${serial}"
+  info "Using device: ${serial}"
   ANDROID_SERIAL="${serial}" run_gradle installDebug
 }
 
@@ -653,16 +949,27 @@ run_debug_in_current_project() {
   local serial
   application_id="$(detect_application_id "${application_id}")"
   serial="$(select_device)"
-  echo "Using device: ${serial}"
-  echo "Using application ID: ${application_id}"
+  info "Using device: ${serial}"
+  info "Using application ID: ${application_id}"
   ANDROID_SERIAL="${serial}" run_gradle installDebug
-  adb -s "${serial}" shell monkey -p "${application_id}" 1 >/dev/null
+  if ! run_logged "Launch app ${application_id}" adb -s "${serial}" shell monkey -p "${application_id}" 1; then
+    fatal \
+      "ANDROID-DEVICE-005" \
+      "Android app launch" \
+      "ADB could not launch application ID ${application_id} on ${serial}." \
+      "The install may have failed, the application ID may be wrong, or the device may no longer be available." \
+      "Run 'bash .devcontainer/scripts/android-dev.sh devices', then retry run-debug."
+  fi
 }
 
 run_debug() {
   if [[ $# -gt 2 ]]; then
-    echo "Usage: bash .devcontainer/scripts/android-dev.sh run-debug [application-id]" >&2
-    exit 1
+    fatal \
+      "ANDROID-CONFIG-011" \
+      "Command usage" \
+      "Invalid run-debug arguments." \
+      "run-debug accepts zero arguments or one optional application ID." \
+      "Run: bash .devcontainer/scripts/android-dev.sh run-debug [application-id]"
   fi
 
   local application_id="${2:-}"
@@ -674,7 +981,7 @@ run_debug() {
   fi
 
   project_root="$(select_project_root)"
-  echo "Using project: ${project_root}"
+  info "Using project: ${project_root}"
   (
     cd "${project_root}"
     run_debug_in_current_project "${application_id}"
@@ -684,31 +991,36 @@ run_debug() {
 doctor() {
   require_adb
 
-  echo "Profile:"
-  echo "${ANDROID_SDK_PROFILE:-unknown}"
+  info "Profile:"
+  info "${ANDROID_SDK_PROFILE:-unknown}"
 
   echo
-  echo "Java:"
-  java -version
+  info "Java:"
+  run_logged "Java version" java -version
 
   echo
-  echo "Android SDK:"
-  sdkmanager --version
+  info "Android SDK:"
+  run_logged "Android SDK manager version" sdkmanager --version
 
   echo
-  echo "ADB:"
-  adb version
+  info "ADB:"
+  run_logged "ADB version" adb version
 
   echo
-  echo "Installed SDK packages:"
-  sdkmanager --list_installed
+  info "Installed SDK packages:"
+  run_logged "Installed SDK packages" sdkmanager --list_installed
 
   echo
-  echo "Connected devices:"
+  info "Connected devices:"
   show_devices
 }
 
 command="${1:-help}"
+
+if [[ "${command}" != "help" && "${command}" != "-h" && "${command}" != "--help" && "${command}" != "logs" ]]; then
+  init_log "${command}"
+  trap 'handle_unexpected_error $? "$BASH_COMMAND" "$LINENO"' ERR
+fi
 
 case "${command}" in
   doctor)
@@ -732,29 +1044,40 @@ case "${command}" in
   pair-device)
     require_adb
     if [[ $# -ne 2 ]]; then
-      echo "Usage: bash .devcontainer/scripts/android-dev.sh pair-device <ip:port>" >&2
-      exit 1
+      fatal \
+        "ANDROID-CONFIG-012" \
+        "Command usage" \
+        "Invalid pair-device arguments." \
+        "ADB pairing requires the phone pairing address and pairing port." \
+        "Run: bash .devcontainer/scripts/android-dev.sh pair-device <ip:pairing-port>"
     fi
-    if ! adb pair "$2"; then
-      cat >&2 <<'EOF'
-
-Pairing failed.
-Check these common causes:
-  1. Use the pairing port from "Pair device with pairing code", not the later connection port.
-  2. Keep the pairing-code screen open on the phone until pairing completes.
-  3. If the code/session expired, generate a fresh pairing code and retry.
-  4. Confirm the phone and workstation are still on the same Wi-Fi network.
-EOF
-      exit 1
+    if ! run_logged "ADB pair ${2}" adb pair "$2"; then
+      fatal \
+        "ANDROID-DEVICE-006" \
+        "Wireless device pairing" \
+        "ADB pairing failed for ${2}." \
+        "The container cannot trust or connect to the phone until pairing succeeds." \
+        "Use the pairing port from 'Pair device with pairing code', keep the pairing-code screen open, generate a fresh code if needed, and confirm both devices are on the same Wi-Fi network."
     fi
     ;;
   connect-device)
     require_adb
     if [[ $# -ne 2 ]]; then
-      echo "Usage: bash .devcontainer/scripts/android-dev.sh connect-device <ip:port>" >&2
-      exit 1
+      fatal \
+        "ANDROID-CONFIG-013" \
+        "Command usage" \
+        "Invalid connect-device arguments." \
+        "ADB wireless connection requires the phone connection address and current connection port." \
+        "Run: bash .devcontainer/scripts/android-dev.sh connect-device <ip:connect-port>"
     fi
-    adb connect "$2"
+    if ! run_logged "ADB connect ${2}" adb connect "$2"; then
+      fatal \
+        "ANDROID-DEVICE-007" \
+        "Wireless device connection" \
+        "ADB could not connect to ${2}." \
+        "The device will not be available for install or run commands." \
+        "Use the current connection port shown on the Wireless debugging screen and confirm network reachability with network-check."
+    fi
     ;;
   network-check)
     network_check "$@"
@@ -771,6 +1094,9 @@ EOF
   watch-gradle)
     watch_gradle "$@"
     ;;
+  logs)
+    logs_command "$@"
+    ;;
   install-debug)
     install_debug
     ;;
@@ -784,9 +1110,13 @@ EOF
     usage
     ;;
   *)
-    echo "Unknown command: ${command}" >&2
     echo >&2
     usage >&2
-    exit 1
+    fatal \
+      "ANDROID-CONFIG-014" \
+      "Command usage" \
+      "Unknown command: ${command}" \
+      "The CLI can only run one of its documented commands." \
+      "Run: bash .devcontainer/scripts/android-dev.sh --help"
     ;;
 esac
