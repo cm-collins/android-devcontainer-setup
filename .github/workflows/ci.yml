@@ -24,10 +24,10 @@ jobs:
           sudo apt-get install -y shellcheck
 
       - name: Check shell syntax
-        run: bash -n .devcontainer/scripts/*.sh
+        run: bash -n .devcontainer/scripts/*.sh .devcontainer/scripts/lib/*.sh
 
       - name: Run ShellCheck
-        run: shellcheck .devcontainer/scripts/*.sh
+        run: shellcheck .devcontainer/scripts/*.sh .devcontainer/scripts/lib/*.sh
 
       - name: Check helper usage
         run: bash .devcontainer/scripts/android-dev.sh --help

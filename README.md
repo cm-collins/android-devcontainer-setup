@@ -23,6 +23,12 @@ Verify the environment:
 bash .devcontainer/scripts/android-dev.sh doctor
 ```
 
+If you are starting from this workstation template, create a starter app first:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh init
+```
+
 Build the Android project:
 
 ```bash
@@ -235,6 +241,15 @@ The editor is not the source of truth. The environment is defined by:
 ├── devcontainer.json
 └── scripts/
     ├── android-dev.sh
+    ├── lib/
+    │   ├── core.sh
+    │   ├── devices.sh
+    │   ├── editor.sh
+    │   ├── gradle.sh
+    │   ├── network.sh
+    │   ├── projects.sh
+    │   ├── validation.sh
+    │   └── watch.sh
     └── verify-android-env.sh
 ```
 
@@ -400,6 +415,15 @@ project-root/
 │   ├── devcontainer.json
 │   └── scripts/
 │       ├── android-dev.sh
+│       ├── lib/
+│       │   ├── core.sh
+│       │   ├── devices.sh
+│       │   ├── editor.sh
+│       │   ├── gradle.sh
+│       │   ├── network.sh
+│       │   ├── projects.sh
+│       │   ├── validation.sh
+│       │   └── watch.sh
 │       └── verify-android-env.sh
 ├── gradlew
 ├── gradlew.bat
@@ -422,6 +446,15 @@ project-root/
 │   ├── devcontainer.json
 │   └── scripts/
 │       ├── android-dev.sh
+│       ├── lib/
+│       │   ├── core.sh
+│       │   ├── devices.sh
+│       │   ├── editor.sh
+│       │   ├── gradle.sh
+│       │   ├── network.sh
+│       │   ├── projects.sh
+│       │   ├── validation.sh
+│       │   └── watch.sh
 │       └── verify-android-env.sh
 ├── composeApp/
 ├── shared/
@@ -533,6 +566,8 @@ Available commands:
 | `init` | Interactively create and build a new Android app |
 | `new-app` | Create a basic Android app scaffold with a Kotlin `MainActivity` |
 | `project` | Run another command inside a project directory from the current shell |
+| `export-devcontainer` | Copy this workstation's Dev Container setup into a generated or existing project |
+| `sync-workspace` | Generate a multi-root editor workspace for nested Android projects |
 | `watch-gradle` | Watch Gradle files and prompt for sync checks |
 | `logs` | List, print, or tail command logs |
 | `install-debug` | Interactively choose a device and install the debug build |
@@ -618,7 +653,7 @@ bash .devcontainer/scripts/android-dev.sh lint
 
 If the project targets a different Android API level or build-tools version, update `.devcontainer/android-sdk-packages.txt` before rebuilding the container.
 
-If you run `build`, `test`, `lint`, `assemble-debug`, `install-debug`, or `tasks` inside this template repository itself, the command will stop because the template intentionally does not include an Android app project or Gradle wrapper.
+If you run `build`, `test`, `lint`, `assemble-debug`, `install-debug`, or `tasks` inside this workstation repository, the CLI uses the only generated child project when exactly one exists. If multiple child projects exist, it asks which project to use. If no generated project exists, the command stops with a structured project-discovery error.
 
 ---
 
@@ -802,10 +837,9 @@ From inside the Dev Container, run:
 
 ```bash
 bash .devcontainer/scripts/android-dev.sh new-app my-android-app com.example.myapp "My Android App"
-cd my-android-app
 ```
 
-If you want to stay in the current directory instead of changing into the new app immediately, use:
+The command creates the app inside the current Dev Container workspace, runs the first build automatically, and refreshes `android-devcontainer.code-workspace` so editors can see the nested Gradle project. After creation, you can stay in the workstation root and let the CLI detect the generated project:
 
 ```bash
 bash .devcontainer/scripts/android-dev.sh devices
@@ -820,27 +854,61 @@ The generated starter includes:
 * `AndroidManifest.xml`
 * a Kotlin `MainActivity`
 * starter string/theme resources
-* a copy of this `.devcontainer/` setup
 
 Both creation commands download Gradle once in order to generate the wrapper for the new project, then run the full build automatically.
 
-For generated projects, `run-debug` reads the application ID from the Gradle files automatically. From inside the generated project, the normal run command is:
+For generated projects, `run-debug` reads the application ID from the Gradle files automatically. From the workstation root, the normal run command is:
 
 ```bash
 bash .devcontainer/scripts/android-dev.sh run-debug
 ```
 
-From the template repository root, the same command automatically uses the only generated child project when there is exactly one.
+From the workstation root, the same command automatically uses the only generated child project when there is exactly one. If multiple generated projects exist, the CLI asks which one to use.
 
-After `new-app`, project-specific commands must run from the generated project root or through the `project` helper. Running `build` from the template repository root still fails intentionally because the template itself is not an Android app.
+If you manually `cd` into a generated child project before exporting a standalone Dev Container, call the parent workstation script:
+
+```bash
+bash ../.devcontainer/scripts/android-dev.sh run-debug
+```
+
+The same project-aware behavior applies to:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh build
+bash .devcontainer/scripts/android-dev.sh test
+bash .devcontainer/scripts/android-dev.sh lint
+bash .devcontainer/scripts/android-dev.sh assemble-debug
+bash .devcontainer/scripts/android-dev.sh install-debug
+bash .devcontainer/scripts/android-dev.sh tasks
+```
 
 ### Workspace Placement and Reopening
 
-The generated project receives its own `.devcontainer/` directory, so it can become an independent project after creation.
+By default, generated projects do not receive a second `.devcontainer/` directory. The current repository acts as the Android workstation, and generated apps live inside that already-running environment. This avoids rebuilding a second container immediately after project creation.
+
+For VS Code or Cursor language indexing, open the generated multi-root workspace file:
+
+```text
+android-devcontainer.code-workspace
+```
+
+The file is generated and ignored by Git because it reflects the local set of generated child projects. To refresh it after adding or removing projects, run:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh sync-workspace
+```
+
+The VS Code Kotlin language server can report false `UNRESOLVED_REFERENCE` diagnostics for Android framework symbols in AGP 9 projects even when Gradle compiles the app successfully. The generated workspace disables those editor-only Kotlin diagnostics and treats Gradle build, test, and lint output as the source of truth.
+
+When a generated app should become a standalone repository with its own Dev Container, export the environment intentionally:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh export-devcontainer my-android-app
+```
 
 If you want the new app to live beside this template rather than inside it, create it from a host-side parent workspace or from a Dev Container session that has that parent directory mounted. The core CLI stays editor-neutral; automatically opening a new editor window and choosing **Reopen in Container** is editor-specific behavior handled differently by VS Code, Cursor, and JetBrains products.
 
-For VS Code or Cursor users, after creating a separate project folder, open that folder and use **Dev Containers: Reopen in Container**. JetBrains users can open the generated project through their Dev Container flow. Terminal-only users can enter the generated directory and continue with the same shared commands.
+For VS Code or Cursor users, after exporting a standalone Dev Container into a separate project folder, open that folder and use **Dev Containers: Reopen in Container**. JetBrains users can open the generated project through their Dev Container flow. Terminal-only users can enter the generated directory and continue with the same shared commands.
 
 ### Option 3: Create with Android Studio, Then Use the Container
 
