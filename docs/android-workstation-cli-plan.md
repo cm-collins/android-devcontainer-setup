@@ -308,6 +308,79 @@ bash .devcontainer/scripts/android-dev.sh logs
 
 Existing commands such as `doctor`, `devices`, `run-debug`, `watch-gradle`, `pair-device`, and `connect-device` should remain stable.
 
+## Foundation: CLI Separation and Workspace Model
+
+Before adding more Android Studio-like workflows, the CLI should keep one stable public entry point while separating implementation details into focused modules.
+
+### Internal Structure
+
+```text
+.devcontainer/scripts/
+├── android-dev.sh
+└── lib/
+    ├── core.sh
+    ├── devices.sh
+    ├── editor.sh
+    ├── gradle.sh
+    ├── network.sh
+    ├── projects.sh
+    ├── validation.sh
+    └── watch.sh
+```
+
+### Design Rules
+
+* `android-dev.sh` should stay a thin command router.
+* Logging, structured errors, validation, project creation, Gradle execution, device handling, network checks, and file watching should each live in focused modules.
+* Shared behavior should be reused through helper functions instead of duplicated command branches.
+* Public commands should remain stable even when internal files move.
+* Commands should auto-detect the active generated project where that is deterministic.
+* Editor indexing should be supported through generated workspace metadata instead of requiring a second Dev Container by default.
+* Editor-only diagnostics that conflict with successful Gradle Android builds should be handled explicitly, with Gradle build/test/lint remaining the source of truth.
+
+### Workspace Model
+
+Generated projects should live inside the current Android workstation by default:
+
+```text
+android-devcontainer/
+├── .devcontainer/
+├── docs/
+└── my-android-app/
+    ├── app/
+    ├── gradlew
+    └── settings.gradle.kts
+```
+
+This avoids forcing developers to rebuild a second Dev Container immediately after creating a project.
+
+Standalone project export should be explicit:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh export-devcontainer my-android-app
+```
+
+Editor workspace sync should also be explicit and repeatable:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh sync-workspace
+```
+
+`new-app` and `init` should run workspace sync automatically after a successful first build.
+
+### Acceptance Criteria
+
+* The public CLI entry point remains `bash .devcontainer/scripts/android-dev.sh <command>`.
+* The entry point sources focused modules from `.devcontainer/scripts/lib/`.
+* `new-app` and `init` create generated projects without copying `.devcontainer/` by default.
+* Generated projects build automatically after creation.
+* `build`, `test`, `lint`, `assemble-debug`, `install-debug`, `run-debug`, and `tasks` can run from the workstation root when exactly one generated child project exists.
+* If multiple child projects exist, the CLI prompts for a project selection instead of guessing.
+* `sync-workspace` generates `android-devcontainer.code-workspace` with the workstation root and detected generated Gradle projects.
+* The generated workspace disables noisy Kotlin language-server diagnostics when they conflict with Android Gradle Plugin 9 built-in Kotlin projects.
+* The generated workspace file is ignored by Git because it reflects local project choices.
+* `export-devcontainer <directory>` copies the workstation `.devcontainer/` into a project only when requested.
+
 ## Phase 1: Project Templates
 
 Upgrade `init` from a single starter scaffold into a project wizard.
