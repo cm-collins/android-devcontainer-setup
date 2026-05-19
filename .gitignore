@@ -3,3 +3,5 @@
 *.keystore
 *.jks
 local.properties
+.agents
+.codex
