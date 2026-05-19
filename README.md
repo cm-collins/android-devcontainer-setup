@@ -6,6 +6,43 @@ This project is designed to make Android development cleaner, portable, and easi
 
 ---
 
+## Quick Start
+
+Clone this repository:
+
+```bash
+git clone <repository-url>
+cd android-devcontainer
+```
+
+Open the repository in a Dev Container-compatible editor such as VS Code, Cursor, or IntelliJ IDEA, then reopen or build the workspace inside the Dev Container.
+
+Verify the environment:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh doctor
+```
+
+Build the Android project:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh build
+```
+
+List connected Android devices:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh devices
+```
+
+Install the debug app on a connected device or host emulator:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh install-debug
+```
+
+---
+
 ## Purpose
 
 Modern Android development requires many tools and SDKs, including Java, Gradle, Kotlin, Android SDK, Android build tools, platform tools, and emulator/device tooling.
