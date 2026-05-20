@@ -47,6 +47,9 @@ Pull requests should:
 * call out security-sensitive changes
 * avoid committing local secrets, SDK caches, build outputs, or logs
 
+Use the [commit workflow](docs/commit.md) when creating commits so staged
+changes, commit messages, and final summaries stay consistent.
+
 Security-sensitive areas such as `.devcontainer/`, `.github/`, scripts, and
 security policy files require maintainer review.
 
