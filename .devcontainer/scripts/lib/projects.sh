@@ -46,16 +46,46 @@ select_project_root() {
   esac
 }
 
+metadata_value() {
+  local key="$1"
+  local file=".android-dev/project.json"
+
+  if [[ ! -f "${file}" ]]; then
+    return 1
+  fi
+
+  sed -nE 's/^[[:space:]]*"'"${key}"'"[[:space:]]*:[[:space:]]*"?([^",]+)"?,?[[:space:]]*$/\1/p' "${file}" | head -n 1
+}
+
 detect_application_id() {
   local explicit_application_id="${1:-}"
   local candidate_files=()
   local application_ids=()
   local file
   local detected_id
+  local metadata_runnable
+  local metadata_application_id
 
   if [[ -n "${explicit_application_id}" ]]; then
     require_valid_application_id "${explicit_application_id}"
     printf '%s\n' "${explicit_application_id}"
+    return
+  fi
+
+  metadata_runnable="$(metadata_value runnable || true)"
+  if [[ "${metadata_runnable}" == "false" ]]; then
+    fatal \
+      "ANDROID-PROJECT-009" \
+      "Android application discovery" \
+      "This project is marked as non-runnable in .android-dev/project.json." \
+      "No Activity and Android Library templates do not install or launch an app directly." \
+      "Create a runnable app template, or run build/test/lint for this project instead."
+  fi
+
+  metadata_application_id="$(metadata_value applicationId || true)"
+  if [[ -n "${metadata_application_id}" ]]; then
+    require_valid_application_id "${metadata_application_id}"
+    printf '%s\n' "${metadata_application_id}"
     return
   fi
 
@@ -117,134 +147,6 @@ detect_application_id() {
   fi
 
   printf '%s\n' "${application_ids[0]}"
-}
-
-write_new_app_files() {
-  local target_dir="$1"
-  local application_id="$2"
-  local app_name="$3"
-  local package_path
-  local escaped_app_name
-
-  package_path="$(to_package_path "${application_id}")"
-  escaped_app_name="$(escape_xml "${app_name}")"
-
-  mkdir -p \
-    "${target_dir}/app/src/main/java/${package_path}" \
-    "${target_dir}/app/src/main/res/values"
-
-  cat >"${target_dir}/settings.gradle.kts" <<EOF
-pluginManagement {
-    repositories {
-        google()
-        mavenCentral()
-        gradlePluginPortal()
-    }
-}
-
-dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
-
-rootProject.name = "${app_name}"
-include(":app")
-EOF
-
-  cat >"${target_dir}/build.gradle.kts" <<'EOF'
-plugins {
-    id("com.android.application") version "9.2.0" apply false
-}
-EOF
-
-  cat >"${target_dir}/app/build.gradle.kts" <<EOF
-plugins {
-    id("com.android.application")
-}
-
-android {
-    namespace = "${application_id}"
-    compileSdk = 36
-
-    defaultConfig {
-        applicationId = "${application_id}"
-        minSdk = 23
-        targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
-    }
-}
-EOF
-
-  cat >"${target_dir}/gradle.properties" <<'EOF'
-org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
-android.useAndroidX=true
-EOF
-
-  cat >"${target_dir}/.gitignore" <<'EOF'
-.gradle/
-local.properties
-**/build/
-EOF
-
-  cat >"${target_dir}/app/src/main/AndroidManifest.xml" <<EOF
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application
-        android:allowBackup="true"
-        android:label="@string/app_name"
-        android:theme="@style/AppTheme">
-        <activity
-            android:name=".MainActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-    </application>
-</manifest>
-EOF
-
-  cat >"${target_dir}/app/src/main/res/values/strings.xml" <<EOF
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">${escaped_app_name}</string>
-</resources>
-EOF
-
-  cat >"${target_dir}/app/src/main/res/values/themes.xml" <<'EOF'
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar" />
-</resources>
-EOF
-
-  cat >"${target_dir}/app/src/main/java/${package_path}/MainActivity.kt" <<EOF
-package ${application_id}
-
-import android.app.Activity
-import android.os.Bundle
-import android.view.Gravity
-import android.widget.TextView
-
-class MainActivity : Activity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        setContentView(
-            TextView(this).apply {
-                text = "Hello Android"
-                textSize = 24f
-                gravity = Gravity.CENTER
-            },
-        )
-    }
-}
-EOF
 }
 
 require_project_creation_tools() {
@@ -370,9 +272,12 @@ create_app() {
   local target_dir="$1"
   local application_id="$2"
   local app_name="$3"
+  local template="$4"
+  local next_steps
 
   require_valid_application_id "${application_id}"
   require_valid_app_name "${app_name}"
+  require_valid_template "${template}"
   require_project_creation_tools
 
   if [[ -e "${target_dir}" ]] && [[ -n "$(find "${target_dir}" -mindepth 1 -maxdepth 1 2>/dev/null)" ]]; then
@@ -385,20 +290,36 @@ create_app() {
   fi
 
   mkdir -p "${target_dir}"
-  write_new_app_files "${target_dir}" "${application_id}" "${app_name}"
+  write_new_app_files "${target_dir}" "${application_id}" "${app_name}" "${template}"
   generate_gradle_wrapper "${target_dir}"
   build_generated_app "${target_dir}"
-  sync_workspace sync-workspace
+
+  if [[ "${ANDROID_DEV_SKIP_WORKSPACE_SYNC:-0}" == "1" ]]; then
+    warn \
+      "ANDROID-PROJECT-011" \
+      "Skipped editor workspace sync because ANDROID_DEV_SKIP_WORKSPACE_SYNC=1." \
+      "Run 'bash .devcontainer/scripts/android-dev.sh sync-workspace' later if editor workspace metadata is needed."
+  else
+    sync_workspace sync-workspace
+  fi
+
+  if template_is_runnable "${template}"; then
+    next_steps="  bash .devcontainer/scripts/android-dev.sh devices
+  bash .devcontainer/scripts/android-dev.sh run-debug"
+  else
+    next_steps="  bash .devcontainer/scripts/android-dev.sh build
+  bash .devcontainer/scripts/android-dev.sh lint"
+  fi
 
   cat <<EOF
 
-Created Android app in ${target_dir}
+Created Android project in ${target_dir}
+Template: ${template}
 Build completed successfully.
 Editor workspace metadata was refreshed.
 
 Next steps:
-  bash .devcontainer/scripts/android-dev.sh devices
-  bash .devcontainer/scripts/android-dev.sh run-debug
+${next_steps}
 
 For VS Code or Cursor indexing, open:
   android-devcontainer.code-workspace
@@ -409,20 +330,68 @@ EOF
 }
 
 new_app() {
-  if [[ $# -lt 3 || $# -gt 4 ]]; then
+  local template="basic-activity"
+  local args=()
+  local target_dir
+  local application_id
+  local app_name
+
+  shift
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --template)
+        if [[ $# -lt 2 ]]; then
+          fatal \
+            "ANDROID-CONFIG-019" \
+            "Command usage" \
+            "Missing template name after --template." \
+            "The non-interactive project creation workflow needs an explicit template value." \
+            "Run: bash .devcontainer/scripts/android-dev.sh new-app --template basic-activity <directory> <application-id> [app-name]"
+        fi
+        template="$2"
+        shift 2
+        ;;
+      --template=*)
+        template="${1#--template=}"
+        shift
+        ;;
+      --help|-h)
+        fatal \
+          "ANDROID-CONFIG-004" \
+          "Command usage" \
+          "new-app creates and builds an Android project." \
+          "The non-interactive app creation workflow requires a directory and application ID." \
+          "Run: bash .devcontainer/scripts/android-dev.sh new-app [--template <name>] <directory> <application-id> [app-name]"
+        ;;
+      --*)
+        fatal \
+          "ANDROID-CONFIG-020" \
+          "Command usage" \
+          "Unknown new-app option: $1" \
+          "The new-app command only supports the --template option." \
+          "Run: bash .devcontainer/scripts/android-dev.sh new-app [--template <name>] <directory> <application-id> [app-name]"
+        ;;
+      *)
+        args+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  if [[ "${#args[@]}" -lt 2 || "${#args[@]}" -gt 3 ]]; then
     fatal \
       "ANDROID-CONFIG-004" \
       "Command usage" \
       "Invalid new-app arguments." \
       "The non-interactive app creation workflow requires a directory and application ID." \
-      "Run: bash .devcontainer/scripts/android-dev.sh new-app <directory> <application-id> [app-name]"
+      "Run: bash .devcontainer/scripts/android-dev.sh new-app [--template <name>] <directory> <application-id> [app-name]"
   fi
 
-  local target_dir="$2"
-  local application_id="$3"
-  local app_name="${4:-$(basename "${target_dir}")}"
+  target_dir="${args[0]}"
+  application_id="${args[1]}"
+  app_name="${args[2]:-$(basename "${target_dir}")}"
 
-  create_app "${target_dir}" "${application_id}" "${app_name}"
+  create_app "${target_dir}" "${application_id}" "${app_name}" "${template}"
 }
 
 init_app() {
@@ -431,6 +400,7 @@ init_app() {
   local application_id
   local suggested_dir
   local suggested_application_id
+  local template
 
   while true; do
     read -r -p "App name: " app_name
@@ -461,12 +431,15 @@ init_app() {
       "Use a lowercase reverse-domain ID such as com.example.myapp."
   done
 
+  template="$(select_template)"
+
   cat <<EOF
 
 Project summary:
   App name:       ${app_name}
   Directory:      ${target_dir}
   Application ID: ${application_id}
+  Template:       ${template} ($(template_label "${template}"))
 EOF
 
   if ! confirm "Create and build this project?"; then
@@ -474,7 +447,7 @@ EOF
     exit 0
   fi
 
-  create_app "${target_dir}" "${application_id}" "${app_name}"
+  create_app "${target_dir}" "${application_id}" "${app_name}" "${template}"
 }
 
 run_in_project() {

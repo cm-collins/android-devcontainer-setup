@@ -675,8 +675,9 @@ Available commands:
 | `pair-device` | Pair a phone for wireless debugging |
 | `connect-device` | Connect to a paired wireless phone |
 | `network-check` | Check whether the container can reach a phone IP and optional port |
-| `init` | Interactively create and build a new Android app |
-| `new-app` | Create a basic Android app scaffold with a Kotlin `MainActivity` |
+| `templates` | List available Android project templates |
+| `init` | Interactively create and build a new Android project from a template |
+| `new-app` | Create and build a project with an optional `--template` value |
 | `project` | Run another command inside a project directory from the current shell |
 | `export-devcontainer` | Copy this workstation's Dev Container setup into a generated or existing project |
 | `sync-workspace` | Generate a multi-root editor workspace for nested Android projects |
@@ -965,12 +966,18 @@ The interactive flow asks for an app name, suggests a project directory and appl
 
 When the command finishes successfully, the app is already built and ready for device setup and installation.
 
+To see the supported template choices before starting the wizard, run:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh templates
+```
+
 ### Option 2: Create Non-Interactively from the Dev Container
 
 From inside the Dev Container, run:
 
 ```bash
-bash .devcontainer/scripts/android-dev.sh new-app my-android-app com.example.myapp "My Android App"
+bash .devcontainer/scripts/android-dev.sh new-app --template basic-activity my-android-app com.example.myapp "My Android App"
 ```
 
 The command creates the app inside the current Dev Container workspace, runs the first build automatically, and refreshes `android-devcontainer.code-workspace` so editors can see the nested Gradle project. After creation, you can stay in the workstation root and let the CLI detect the generated project:
@@ -980,22 +987,35 @@ bash .devcontainer/scripts/android-dev.sh devices
 bash .devcontainer/scripts/android-dev.sh run-debug
 ```
 
-The generated starter includes:
+Available templates:
+
+| Template | Use when you want |
+| --- | --- |
+| `basic-activity` | a runnable Kotlin app with a simple launch screen |
+| `empty-activity` | a runnable Kotlin app with an empty `MainActivity` |
+| `no-activity` | an app module without a launcher activity |
+| `compose-activity` | a Jetpack Compose starter activity |
+| `android-library` | a reusable Android library module |
+
+Generated projects include:
 
 * Gradle Kotlin DSL files
 * Gradle wrapper files
 * an `app` module
 * `AndroidManifest.xml`
-* a Kotlin `MainActivity`
+* template-specific Kotlin source files when needed
 * starter string/theme resources
+* `.android-dev/project.json` metadata for deterministic CLI commands
 
 Both creation commands download Gradle once in order to generate the wrapper for the new project, then run the full build automatically.
 
-For generated projects, `run-debug` reads the application ID from the Gradle files automatically. From the workstation root, the normal run command is:
+For generated runnable app templates, `run-debug` reads the application ID from `.android-dev/project.json` automatically. From the workstation root, the normal run command is:
 
 ```bash
 bash .devcontainer/scripts/android-dev.sh run-debug
 ```
+
+For `no-activity` and `android-library`, `run-debug` explains that the project is not directly runnable and points you back to build, test, or lint commands.
 
 From the workstation root, the same command automatically uses the only generated child project when there is exactly one. If multiple generated projects exist, the CLI asks which one to use.
 
@@ -1076,7 +1096,7 @@ bash .devcontainer/scripts/android-dev.sh build
 
 ### Scope of the Built-In Scaffold
 
-Android's official project-creation flow is still centered on Android Studio. The `new-app` command is a maintained starter owned by this repository, designed to give terminal users a clean basic app with a `MainActivity`, not to replace every Android Studio project template.
+Android's official project-creation flow is still centered on Android Studio. The `init` and `new-app` commands provide a maintained set of deterministic starter templates owned by this repository. They are designed to give terminal users a clean, repeatable project start while still working well in Android Studio, IntelliJ IDEA, VS Code, Cursor, and other Dev Container-compatible editors.
 
 ---
 

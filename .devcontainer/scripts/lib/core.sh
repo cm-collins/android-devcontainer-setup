@@ -17,8 +17,9 @@ Commands:
   pair-device         Pair a wireless device: pair-device <ip:port>
   connect-device      Connect to a paired wireless device: connect-device <ip:port>
   network-check       Check phone reachability: network-check <ip> [port]
-  init                Interactively create and build a new Android app
-  new-app             Create and build an Android app: new-app <directory> <application-id> [app-name]
+  templates           List available Android project templates
+  init                Interactively create and build a new Android project
+  new-app             Create and build an Android app: new-app [--template <name>] <directory> <application-id> [app-name]
   project             Run a command in a project: project <directory> <command> [args...]
   export-devcontainer Copy this workstation devcontainer into a project: export-devcontainer <directory>
   sync-workspace      Generate a multi-root editor workspace for nested Android projects

@@ -62,3 +62,10 @@ escape_xml() {
   value="${value//\'/&apos;}"
   printf '%s\n' "${value}"
 }
+
+escape_json() {
+  local value="$1"
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  printf '%s\n' "${value}"
+}
