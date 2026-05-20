@@ -61,12 +61,14 @@ Log: /workspace/.android-dev/logs/run-debug-20260519-101500.log
 | `ANDROID-PROJECT-002` | Application ID could not be detected | Pass the application ID explicitly to `run-debug` |
 | `ANDROID-PROJECT-003` | Multiple application IDs were found | Choose the application ID explicitly |
 | `ANDROID-PROJECT-004` | Target project directory is not empty | Pick a new directory or clean it manually |
+| `ANDROID-PROJECT-009` | Project metadata marks the template as non-runnable | Use build, test, or lint instead of `run-debug`, or create a runnable app template |
 | `ANDROID-DEVICE-001` | ADB is not available | Run inside the Dev Container or install platform-tools on the host |
 | `ANDROID-DEVICE-002` | No authorized device is visible | Run `devices` and follow wireless pairing guidance |
 | `ANDROID-DEVICE-004` | Phone TCP port is unreachable | Check Wi-Fi, phone port, and wireless debugging state |
 | `ANDROID-GRADLE-001` | Gradle command failed | Read the log and fix the Gradle-reported project issue |
 | `ANDROID-GRADLE-002` | Gradle distribution download failed | Check network access to `services.gradle.org` |
 | `ANDROID-CONFIG-001` | Invalid application ID | Use a lowercase reverse-domain ID such as `com.example.myapp` |
+| `ANDROID-CONFIG-017` | Unknown project template | Run `templates` and choose one of the listed template names |
 
 ## Deterministic Failure Rule
 

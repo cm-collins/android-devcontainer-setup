@@ -11,6 +11,8 @@ ANDROID_DEV_WORKSTATION_ROOT="$(cd "${ANDROID_DEV_SCRIPT_DIR}/../.." && pwd)"
 source "${ANDROID_DEV_SCRIPT_DIR}/lib/core.sh"
 # shellcheck source=.devcontainer/scripts/lib/validation.sh
 source "${ANDROID_DEV_SCRIPT_DIR}/lib/validation.sh"
+# shellcheck source=.devcontainer/scripts/lib/templates.sh
+source "${ANDROID_DEV_SCRIPT_DIR}/lib/templates.sh"
 # shellcheck source=.devcontainer/scripts/lib/projects.sh
 source "${ANDROID_DEV_SCRIPT_DIR}/lib/projects.sh"
 # shellcheck source=.devcontainer/scripts/lib/editor.sh
@@ -58,6 +60,9 @@ case "${command}" in
     ;;
   network-check)
     network_check "$@"
+    ;;
+  templates)
+    templates_command
     ;;
   init)
     init_app
