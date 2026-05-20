@@ -1,8 +1,19 @@
 # Android Dev Container Environment
 
+[![CI](https://github.com/cm-collins/android-devcontainer-setup/actions/workflows/ci.yml/badge.svg)](https://github.com/cm-collins/android-devcontainer-setup/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/cm-collins/android-devcontainer-setup/actions/workflows/codeql.yml/badge.svg)](https://github.com/cm-collins/android-devcontainer-setup/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 A reproducible Docker-based development environment for building Android and Kotlin Multiplatform Android applications on Windows, macOS, and Linux without installing the full Android toolchain directly on every host machine.
 
-This project is designed to make Android development cleaner, portable, and easier to onboard by defining the development environment inside a `.devcontainer` directory.
+This repository is an Android workstation template. It gives developers one containerized command-line environment for Android SDK tooling, Gradle builds, ADB, generated starter apps, and editor-neutral workflows.
+
+It is designed for:
+
+* Android developers who want a clean Docker-based setup.
+* Kotlin Multiplatform teams that need a repeatable Android target environment.
+* Open-source maintainers who want contributors to build Android projects without local SDK drift.
+* Terminal-first developers using VS Code, Cursor, IntelliJ IDEA, Android Studio, or plain shells.
 
 ---
 
@@ -11,8 +22,8 @@ This project is designed to make Android development cleaner, portable, and easi
 Clone this repository:
 
 ```bash
-git clone <repository-url>
-cd android-devcontainer
+git clone https://github.com/cm-collins/android-devcontainer-setup.git
+cd android-devcontainer-setup
 ```
 
 Open the repository in a Dev Container-compatible editor such as VS Code, Cursor, or IntelliJ IDEA, then reopen or build the workspace inside the Dev Container.
@@ -46,6 +57,80 @@ Install the debug app on a connected device or host emulator:
 ```bash
 bash .devcontainer/scripts/android-dev.sh install-debug
 ```
+
+---
+
+## Project Status
+
+This project is usable today as a reproducible Android build workstation and starter-app generator.
+
+Stable today:
+
+* Dev Container image for Android and Kotlin Android builds.
+* Base, native, and emulator-asset SDK profiles.
+* Structured CLI errors and timestamped command logs.
+* Wireless Android device pairing and connection helpers.
+* Generated basic Android app with Kotlin `MainActivity`.
+* Workstation-first project detection and editor workspace sync.
+* Open-source guardrails, CI checks, CodeQL, CODEOWNERS, and security policy.
+
+Still evolving:
+
+* Android Studio-like project template wizard.
+* Optional SDK and Gradle plugin installer.
+* Emulator discovery, creation, and startup workflow.
+* Deeper Dev Container hardening and generated-project security review.
+* Public roadmap polish and release maturity notes.
+
+See the [Roadmap](#roadmap) and [Android Workstation CLI Plan](docs/android-workstation-cli-plan.md) for the current direction.
+
+---
+
+## Architecture At A Glance
+
+The repository acts as an Android workstation. The Dev Container owns the repeatable build environment, while the host still owns hardware-sensitive pieces such as Docker, USB access, display, GPU, and emulator acceleration.
+
+```mermaid
+flowchart TB
+    developer["Developer"]
+    editor["Editor or terminal\nVS Code, Cursor, IntelliJ IDEA,\nAndroid Studio, shell"]
+    repo["android-devcontainer-setup\nAndroid workstation repo"]
+    devcontainer["Dev Container\nJDK, Android SDK, Gradle helpers,\nADB client"]
+    app["Generated or existing\nAndroid project"]
+    phone["Physical Android device\nUSB or wireless debugging"]
+    emulator["Host Android Emulator\nKVM/GPU/display on host"]
+    ci["GitHub Actions\nCI, Docker build, CodeQL"]
+
+    developer --> editor
+    editor --> repo
+    repo --> devcontainer
+    devcontainer --> app
+    devcontainer --> phone
+    devcontainer --> emulator
+    repo --> ci
+```
+
+The default project-creation workflow keeps new Android apps inside the workstation, then syncs editor workspace metadata so the developer can keep working from one Dev Container.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant CLI as android-dev.sh
+    participant Workspace as Android workstation
+    participant App as Generated app
+    participant Gradle
+    participant Editor
+
+    User->>CLI: init or new-app
+    CLI->>Workspace: validate app name and application ID
+    CLI->>App: create Gradle Android project
+    CLI->>Gradle: generate wrapper and run first build
+    Gradle-->>CLI: build result and logs
+    CLI->>Editor: sync android-devcontainer.code-workspace
+    CLI-->>User: project ready for build, devices, run-debug
+```
+
+Standalone apps are still supported, but they are explicit. Use `export-devcontainer <directory>` only when a generated app should become its own independent repository with its own `.devcontainer/`.
 
 ---
 
@@ -112,6 +197,33 @@ With this setup, the host machine only needs the essentials:
 * Optional Android Emulator or physical Android device
 
 The Android build environment lives inside the container.
+
+---
+
+## When To Use This
+
+Use this repository when you want:
+
+* A predictable Android SDK and Java environment for contributors.
+* A clean workstation where Android projects can be created, built, linted, and installed from the terminal.
+* A Dev Container setup that works across Windows, macOS, and Linux with documented host boundaries.
+* A starter point for Android or Kotlin Multiplatform Android repositories.
+
+This is not trying to replace Android Studio. Android Studio and IntelliJ IDEA remain excellent Android IDEs. This project makes the development environment reproducible and editor-independent, so IDE users and terminal users can share the same build and device workflow.
+
+---
+
+## Current Limits
+
+The project intentionally keeps a lean default path. Some workflows are host-dependent or still planned.
+
+Current limits:
+
+* The default image does not install emulator system images, NDK, or CMake unless an optional SDK profile is selected.
+* The recommended emulator workflow is still host-run emulator plus container-side build/install.
+* USB device access depends on host OS drivers, permissions, and Docker/device forwarding.
+* VS Code/Cursor Kotlin diagnostics can be noisy for Android Gradle Plugin 9 projects, so generated workspaces treat Gradle build, test, and lint as the source of truth.
+* iOS builds for Kotlin Multiplatform still require macOS and Xcode.
 
 ---
 
@@ -812,6 +924,28 @@ bash .devcontainer/scripts/android-dev.sh install-debug
 ```
 
 Use emulator packages inside the container only when a team has a specific reason to manage AVD assets there.
+
+---
+
+## Roadmap
+
+The active roadmap is tracked in GitHub issues and in the [Android Workstation CLI Plan](docs/android-workstation-cli-plan.md).
+
+| Issue | Focus | Status |
+| --- | --- | --- |
+| [#9](https://github.com/cm-collins/android-devcontainer-setup/issues/9) | Harden the Dev Container and generated project security posture | Open |
+| [#10](https://github.com/cm-collins/android-devcontainer-setup/issues/10) | Emulator discovery, creation, and startup workflow | Open |
+| [#11](https://github.com/cm-collins/android-devcontainer-setup/issues/11) | Optional SDK and Gradle plugin installer | Open |
+| [#12](https://github.com/cm-collins/android-devcontainer-setup/issues/12) | Android Studio-like project template wizard | Open |
+| [#13](https://github.com/cm-collins/android-devcontainer-setup/issues/13) | README positioning and public roadmap | In progress |
+
+Suggested implementation order:
+
+1. Finish public README and roadmap polish.
+2. Harden Dev Container and generated-project security posture.
+3. Add Android Studio-like project template selection.
+4. Add optional SDK and Gradle plugin packs.
+5. Add emulator management with explicit host capability checks.
 
 ---
 
