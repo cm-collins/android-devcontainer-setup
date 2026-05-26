@@ -66,4 +66,3 @@ flowchart TD
 
 Keep the extension unpublished or experimental. The CLI remains the supported
 product.
-

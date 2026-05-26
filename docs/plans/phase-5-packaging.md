@@ -62,4 +62,3 @@ Run validation from an installed artifact in a clean temporary environment.
 
 Mark the release as pre-release or remove the install instructions. Keep
 repository-local development unchanged.
-

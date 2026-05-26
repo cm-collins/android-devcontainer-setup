@@ -65,4 +65,3 @@ should run inside the Dev Container.
 
 Route `doctor` back to the existing container-only behavior and keep context
 helpers unused until they are corrected.
-

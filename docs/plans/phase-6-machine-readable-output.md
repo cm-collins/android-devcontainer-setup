@@ -70,4 +70,3 @@ Each command should be parsed with a JSON parser in CI.
 ## Rollback
 
 Hide `--json` from docs and leave human-readable output unchanged.
-

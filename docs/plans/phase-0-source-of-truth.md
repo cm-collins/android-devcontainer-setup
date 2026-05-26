@@ -61,4 +61,3 @@ bash .devcontainer/scripts/android-dev.sh --help
 
 Revert the documentation changes only. This phase does not change runtime
 behavior.
-

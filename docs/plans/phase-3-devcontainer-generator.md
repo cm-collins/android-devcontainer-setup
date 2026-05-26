@@ -68,4 +68,3 @@ Also validate in a temporary existing Android Gradle project.
 
 Disable `devcontainer init` and keep `export-devcontainer` as the supported
 transition workflow.
-

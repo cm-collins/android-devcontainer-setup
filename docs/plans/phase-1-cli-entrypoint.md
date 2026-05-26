@@ -65,4 +65,3 @@ bin/android-dev templates
 
 Remove `bin/android-dev` and its CI checks. The compatibility script remains the
 working entry point.
-

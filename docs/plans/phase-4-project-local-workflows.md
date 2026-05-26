@@ -70,4 +70,3 @@ Run once in a normal project root and once from this implementation checkout.
 
 Keep the new helpers but route project selection back through the current
 `select_project_root` behavior.
-

@@ -71,4 +71,3 @@ flowchart TD
 | Container `android-dev doctor` | Phase 2 onward |
 | JSON validation | Phase 6 onward |
 | Package install smoke test | Phase 5 onward |
-
