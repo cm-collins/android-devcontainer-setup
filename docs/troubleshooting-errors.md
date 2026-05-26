@@ -91,20 +91,6 @@ Next step: Run 'android-dev devices' for pairing guidance.
 | `ANDROID-CONFIG-001` | Invalid application ID | Use a lowercase reverse-domain ID such as `com.example.myapp` |
 | `ANDROID-CONFIG-017` | Unknown project template | Run `templates` and choose one of the listed template names |
 
-## Machine-Readable Errors
-
-Phase 6 of the cutover adds JSON output for editor integrations and automation.
-The human-readable error format remains the default. JSON errors should include:
-
-| Field | Meaning |
-| --- | --- |
-| `code` | Stable error code such as `ANDROID-DEVICE-002` |
-| `area` | Human-readable failing area |
-| `problem` | What went wrong |
-| `why` | Why the failure matters |
-| `nextStep` | The next useful command or action |
-| `log` | Log path when available |
-
 ## Deterministic Failure Rule
 
 When the CLI cannot determine a safe value from explicit arguments, project
