@@ -2,6 +2,21 @@
 
 This guide explains how to make a physical Android phone available to the Dev Container.
 
+The target product command is `android-dev`. During the transition, this
+repository still uses the local development command:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh <command>
+```
+
+After Phase 1 of the cutover, the examples in this guide should become:
+
+```bash
+android-dev devices
+android-dev pair-device <ip:pairing-port>
+android-dev connect-device <ip:connect-port>
+```
+
 ## Recommended Path: Wireless Debugging
 
 Wireless debugging is the most portable path across Windows, macOS, Linux, and containerized development.
@@ -50,6 +65,16 @@ bash .devcontainer/scripts/android-dev.sh network-check <ip> <pairing-port>
 ```
 
 `network-check` can also be run from the host shell because it only needs network tools. Commands such as `pair-device`, `connect-device`, and `devices` require ADB, so run them inside the Dev Container unless Android platform-tools are installed on the host too.
+
+When the installed CLI is available, the same flow should use:
+
+```bash
+android-dev network-check <ip>
+android-dev network-check <ip> <pairing-port>
+android-dev pair-device <ip:pairing-port>
+android-dev connect-device <ip:connect-port>
+android-dev devices
+```
 
 ## Android Studio QR Flow
 

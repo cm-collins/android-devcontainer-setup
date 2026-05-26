@@ -29,10 +29,15 @@ body:
     attributes:
       label: Area
       options:
+        - CLI entry point
+        - Dev Container generator
         - Project templates
+        - Project-local workflows
         - Device workflow
         - Emulator workflow
         - SDK packages or plugins
+        - Packaging or releases
+        - Editor integration
         - Logging or errors
         - Security or governance
         - Documentation

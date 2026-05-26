@@ -1,7 +1,9 @@
 # Open Source Planning
 
 This file collects the discussions and issues that should be opened as the
-project shifts from a cloneable template to an installable CLI.
+project shifts from a cloneable template to an installable CLI. The migration
+sequence is tracked in [Cutover Plan](cutover-plan.md), with detailed phase
+plans in [docs/plans](plans/README.md).
 
 ## Recommended Discussions
 
@@ -83,6 +85,18 @@ Questions:
 ```
 
 ## Recommended Issues
+
+Recommended labels:
+
+| Label | Use |
+| --- | --- |
+| `product-direction` | Product shape and strategic direction |
+| `cli` | Installed command and command behavior |
+| `devcontainer` | Generated Dev Container files and Docker behavior |
+| `distribution` | Packaging, releases, install, update, and uninstall |
+| `editor-integration` | VS Code, Cursor, and future editor wrappers |
+| `diagnostics` | Doctor checks, structured errors, and logs |
+| `roadmap` | Phase-level implementation tracking |
 
 ### Issue: Introduce Installed CLI Entry Point
 

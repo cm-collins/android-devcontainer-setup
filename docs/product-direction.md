@@ -1,6 +1,8 @@
 # Product Direction
 
-This document is the source of truth for the next product shape.
+This document is the source of truth for the next product shape. The migration
+sequence lives in [Cutover Plan](cutover-plan.md), with detailed phase plans in
+[docs/plans](plans/README.md).
 
 ## North Star
 

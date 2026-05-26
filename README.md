@@ -101,9 +101,11 @@ Still evolving:
 * Deeper Dev Container hardening and generated-project security review.
 * Public roadmap polish and release maturity notes.
 
-See the [Product Direction](docs/product-direction.md), [Roadmap](#roadmap),
-and [Android Workstation CLI Plan](docs/android-workstation-cli-plan.md) for
-the current direction.
+See the [Product Direction](docs/product-direction.md),
+[Cutover Plan](docs/cutover-plan.md), [Phase Plans](docs/plans/README.md),
+[Roadmap](#roadmap), and
+[Android Workstation CLI Plan](docs/android-workstation-cli-plan.md) for the
+current direction.
 
 ---
 
@@ -969,6 +971,7 @@ Use emulator packages inside the container only when a team has a specific reaso
 ## Roadmap
 
 The active roadmap is tracked in GitHub issues, [Product Direction](docs/product-direction.md),
+[Cutover Plan](docs/cutover-plan.md), [Phase Plans](docs/plans/README.md),
 [Open Source Planning](docs/open-source-planning.md), and the
 [Android Workstation CLI Plan](docs/android-workstation-cli-plan.md).
 

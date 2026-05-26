@@ -3,6 +3,21 @@
 The Android workstation CLI prints structured warnings and errors so developers
 can identify the failing area quickly.
 
+The target product command is `android-dev`. During the transition, this
+repository still uses the local development command:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh <command>
+```
+
+After Phase 1 of the cutover, user-facing examples should prefer:
+
+```bash
+android-dev logs
+android-dev logs latest
+android-dev logs tail
+```
+
 ## Log Commands
 
 List command logs:
@@ -42,6 +57,12 @@ Next step: Run 'bash .devcontainer/scripts/android-dev.sh devices' for pairing g
 Log: /workspace/.android-dev/logs/run-debug-20260519-101500.log
 ```
 
+After the installed entry point exists, the next step should be printed as:
+
+```text
+Next step: Run 'android-dev devices' for pairing guidance.
+```
+
 ## Error Areas
 
 | Prefix | Area |
@@ -69,6 +90,20 @@ Log: /workspace/.android-dev/logs/run-debug-20260519-101500.log
 | `ANDROID-GRADLE-002` | Gradle distribution download failed | Check network access to `services.gradle.org` |
 | `ANDROID-CONFIG-001` | Invalid application ID | Use a lowercase reverse-domain ID such as `com.example.myapp` |
 | `ANDROID-CONFIG-017` | Unknown project template | Run `templates` and choose one of the listed template names |
+
+## Machine-Readable Errors
+
+Phase 6 of the cutover adds JSON output for editor integrations and automation.
+The human-readable error format remains the default. JSON errors should include:
+
+| Field | Meaning |
+| --- | --- |
+| `code` | Stable error code such as `ANDROID-DEVICE-002` |
+| `area` | Human-readable failing area |
+| `problem` | What went wrong |
+| `why` | Why the failure matters |
+| `nextStep` | The next useful command or action |
+| `log` | Log path when available |
 
 ## Deterministic Failure Rule
 

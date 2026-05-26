@@ -5,8 +5,10 @@ helper script into an installable `android-dev` CLI for terminal-first
 developers, while still supporting developers who prefer Android Studio,
 IntelliJ, VS Code, Cursor, or a mixed workflow.
 
-The product source of truth is [Product Direction](product-direction.md). This
-plan tracks implementation phases and command behavior.
+The product source of truth is [Product Direction](product-direction.md). The
+migration sequence is tracked in [Cutover Plan](cutover-plan.md), with detailed
+phase execution in [docs/plans](plans/README.md). This plan tracks
+implementation phases and command behavior.
 
 ## Product Goal
 
