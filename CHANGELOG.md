@@ -11,6 +11,9 @@ stabilize.
 
 ### Added
 
+* Product direction for an installable `android-dev` CLI and future editor
+  integrations.
+* Open-source planning notes for roadmap issues and GitHub Discussions.
 * Reusable Android Dev Container with Android SDK profiles.
 * Helper CLI for doctor checks, builds, tests, lint, device listing, wireless
   pairing, app creation, and debug installation.

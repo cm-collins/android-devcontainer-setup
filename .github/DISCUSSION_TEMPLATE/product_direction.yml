@@ -1,0 +1,32 @@
+title: "Product direction: "
+labels:
+  - product-direction
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this discussion for product-shape questions around the installable
+        `android-dev` CLI, Dev Container generation, editor integrations, and
+        developer workflow.
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What product direction or workflow should we discuss?
+      placeholder: "Example: Should the first public install path be npm, Homebrew, or an install script?"
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal or options
+      description: Share a preferred direction, alternatives, or tradeoffs.
+    validations:
+      required: true
+  - type: textarea
+    id: user-impact
+    attributes:
+      label: Developer impact
+      description: Who does this help, and what workflow becomes easier?
+    validations:
+      required: false

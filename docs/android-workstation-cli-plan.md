@@ -1,10 +1,19 @@
 # Android Workstation CLI Plan
 
-This plan describes the next phase of the Dev Container: turning the current helper script into a fuller Android workstation CLI for terminal-first developers, while still supporting developers who prefer Android Studio, IntelliJ, VS Code, Cursor, or a mixed workflow.
+This plan describes the next phase of the Dev Container: turning the current
+helper script into an installable `android-dev` CLI for terminal-first
+developers, while still supporting developers who prefer Android Studio,
+IntelliJ, VS Code, Cursor, or a mixed workflow.
+
+The product source of truth is [Product Direction](product-direction.md). This
+plan tracks implementation phases and command behavior.
 
 ## Product Goal
 
-Provide a guided Android development experience inside the Dev Container that feels close to Android Studio's common workflows:
+Provide a guided Android development experience that can be installed and run
+from any Android project, then continue inside the Dev Container with the same
+command name. The experience should feel close to Android Studio's common
+workflows:
 
 * create a project from a template
 * install optional SDK packages and Gradle tooling
@@ -12,7 +21,10 @@ Provide a guided Android development experience inside the Dev Container that fe
 * run, build, lint, test, and watch project changes
 * keep readable logs for every meaningful operation
 
-The tool should stay portable across Linux, macOS, and Windows hosts. The container-owned workflow should behave the same on every host. When a workflow depends on host capabilities, the CLI should detect the boundary, explain the tradeoff, and guide the developer toward the most reliable supported option.
+The tool should stay portable across Linux, macOS, and Windows hosts. The
+container-owned workflow should behave the same on every host. When a workflow
+depends on host capabilities, the CLI should detect the boundary, explain the
+tradeoff, and guide the developer toward the most reliable supported option.
 
 ## Guiding Principles
 
@@ -295,22 +307,31 @@ These workflows require explicit host capability checks:
 ## Proposed CLI Surface
 
 ```bash
-bash .devcontainer/scripts/android-dev.sh init
-bash .devcontainer/scripts/android-dev.sh templates
-bash .devcontainer/scripts/android-dev.sh plugins
-bash .devcontainer/scripts/android-dev.sh sdk
-bash .devcontainer/scripts/android-dev.sh emulators
-bash .devcontainer/scripts/android-dev.sh emulator-create
-bash .devcontainer/scripts/android-dev.sh emulator-start
-bash .devcontainer/scripts/android-dev.sh emulator-stop
-bash .devcontainer/scripts/android-dev.sh logs
+android-dev init
+android-dev devcontainer init
+android-dev templates
+android-dev packs
+android-dev sdk
+android-dev emulators
+android-dev emulator create
+android-dev emulator start
+android-dev emulator stop
+android-dev logs
 ```
 
 Existing commands such as `doctor`, `devices`, `run-debug`, `watch-gradle`, `pair-device`, and `connect-device` should remain stable.
 
-## Foundation: CLI Separation and Workspace Model
+During the transition, the repository-local development command remains:
 
-Before adding more Android Studio-like workflows, the CLI should keep one stable public entry point while separating implementation details into focused modules.
+```bash
+bash .devcontainer/scripts/android-dev.sh <command>
+```
+
+## Foundation: CLI Separation and Project Model
+
+Before adding more Android Studio-like workflows, the CLI should move toward one
+stable public entry point, `android-dev`, while separating implementation
+details into focused modules.
 
 ### Internal Structure
 
@@ -330,7 +351,9 @@ Before adding more Android Studio-like workflows, the CLI should keep one stable
 
 ### Design Rules
 
-* `android-dev.sh` should stay a thin command router.
+* `android-dev` should be the public command.
+* `android-dev.sh` should stay a thin repository-local command router during
+  the transition.
 * Logging, structured errors, validation, project creation, Gradle execution, device handling, network checks, and file watching should each live in focused modules.
 * Shared behavior should be reused through helper functions instead of duplicated command branches.
 * Public commands should remain stable even when internal files move.
@@ -338,9 +361,14 @@ Before adding more Android Studio-like workflows, the CLI should keep one stable
 * Editor indexing should be supported through generated workspace metadata instead of requiring a second Dev Container by default.
 * Editor-only diagnostics that conflict with successful Gradle Android builds should be handled explicitly, with Gradle build/test/lint remaining the source of truth.
 
-### Workspace Model
+### Project Model
 
-Generated projects should live inside the current Android workstation by default:
+The target model is that developers run `android-dev` inside their own project.
+The CLI can add `.devcontainer/` files to that project and then continue inside
+the container.
+
+Current generated projects may still live inside this implementation workspace
+while the tool is template-first:
 
 ```text
 android-devcontainer/
@@ -354,32 +382,38 @@ android-devcontainer/
 
 This avoids forcing developers to rebuild a second Dev Container immediately after creating a project.
 
-Standalone project export should be explicit:
+Standalone project setup should become explicit through:
 
 ```bash
-bash .devcontainer/scripts/android-dev.sh export-devcontainer my-android-app
+android-dev devcontainer init
 ```
 
 Editor workspace sync should also be explicit and repeatable:
 
 ```bash
-bash .devcontainer/scripts/android-dev.sh sync-workspace
+android-dev sync-workspace
 ```
 
 `new-app` and `init` should run workspace sync automatically after a successful first build.
 
 ### Acceptance Criteria
 
-* The public CLI entry point remains `bash .devcontainer/scripts/android-dev.sh <command>`.
+* The public CLI entry point becomes `android-dev <command>`.
+* The repository-local development entry point remains available during the
+  transition.
 * The entry point sources focused modules from `.devcontainer/scripts/lib/`.
 * `new-app` and `init` create generated projects without copying `.devcontainer/` by default.
 * Generated projects build automatically after creation.
 * `build`, `test`, `lint`, `assemble-debug`, `install-debug`, `run-debug`, and `tasks` can run from the workstation root when exactly one generated child project exists.
 * If multiple child projects exist, the CLI prompts for a project selection instead of guessing.
-* `sync-workspace` generates `android-devcontainer.code-workspace` with the workstation root and detected generated Gradle projects.
+* `sync-workspace` generates editor workspace metadata when a multi-root
+  workstation checkout is being used.
 * The generated workspace disables noisy Kotlin language-server diagnostics when they conflict with Android Gradle Plugin 9 built-in Kotlin projects.
 * The generated workspace file is ignored by Git because it reflects local project choices.
-* `export-devcontainer <directory>` copies the workstation `.devcontainer/` into a project only when requested.
+* `android-dev devcontainer init` generates project-local `.devcontainer/`
+  files without overwriting existing files.
+* `export-devcontainer <directory>` remains a transition command until
+  `android-dev devcontainer init` replaces it.
 
 ## Phase 1: Project Templates
 

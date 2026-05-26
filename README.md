@@ -1,12 +1,27 @@
-# Android Dev Container Environment
+# Android Dev Workstation
 
 [![CI](https://github.com/cm-collins/android-devcontainer-setup/actions/workflows/ci.yml/badge.svg)](https://github.com/cm-collins/android-devcontainer-setup/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/cm-collins/android-devcontainer-setup/actions/workflows/codeql.yml/badge.svg)](https://github.com/cm-collins/android-devcontainer-setup/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A reproducible Docker-based development environment for building Android and Kotlin Multiplatform Android applications on Windows, macOS, and Linux without installing the full Android toolchain directly on every host machine.
+An open-source Android workstation CLI and Dev Container environment for
+building Android and Kotlin Android projects on Windows, macOS, and Linux
+without installing the full Android toolchain directly on every host machine.
 
-This repository is an Android workstation template. It gives developers one containerized command-line environment for Android SDK tooling, Gradle builds, ADB, generated starter apps, and editor-neutral workflows.
+The product direction is an installable `android-dev` CLI that developers can
+run from any Android project:
+
+```bash
+android-dev init
+android-dev devcontainer init
+android-dev doctor
+android-dev build
+android-dev run-debug
+```
+
+This repository is currently the implementation workspace for that product. It
+also works today as a cloneable Android Dev Container template while the CLI is
+being packaged.
 
 It is designed for:
 
@@ -17,7 +32,11 @@ It is designed for:
 
 ---
 
-## Quick Start
+## Current Development Quick Start
+
+The long-term goal is that developers install `android-dev` instead of cloning
+this repository. Until that package exists, use the repository-local CLI while
+developing the project itself.
 
 Clone this repository:
 
@@ -28,7 +47,7 @@ cd android-devcontainer-setup
 
 Open the repository in a Dev Container-compatible editor such as VS Code, Cursor, or IntelliJ IDEA, then reopen or build the workspace inside the Dev Container.
 
-Verify the environment:
+Verify the environment from inside the Dev Container:
 
 ```bash
 bash .devcontainer/scripts/android-dev.sh doctor
@@ -82,19 +101,25 @@ Still evolving:
 * Deeper Dev Container hardening and generated-project security review.
 * Public roadmap polish and release maturity notes.
 
-See the [Roadmap](#roadmap) and [Android Workstation CLI Plan](docs/android-workstation-cli-plan.md) for the current direction.
+See the [Product Direction](docs/product-direction.md), [Roadmap](#roadmap),
+and [Android Workstation CLI Plan](docs/android-workstation-cli-plan.md) for
+the current direction.
 
 ---
 
 ## Architecture At A Glance
 
-The repository acts as an Android workstation. The Dev Container owns the repeatable build environment, while the host still owns hardware-sensitive pieces such as Docker, USB access, display, GPU, and emulator acceleration.
+The target architecture is an installed `android-dev` CLI plus generated
+project-local Dev Container files. The Dev Container owns the repeatable Android
+build environment, while the host still owns hardware-sensitive pieces such as
+Docker, USB access, display, GPU, and emulator acceleration.
 
 ```mermaid
 flowchart TB
     developer["Developer"]
     editor["Editor or terminal\nVS Code, Cursor, IntelliJ IDEA,\nAndroid Studio, shell"]
-    repo["android-devcontainer-setup\nAndroid workstation repo"]
+    cli["android-dev CLI\ninstalled tool"]
+    repo["Android project\nwith generated .devcontainer"]
     devcontainer["Dev Container\nJDK, Android SDK, Gradle helpers,\nADB client"]
     app["Generated or existing\nAndroid project"]
     phone["Physical Android device\nUSB or wireless debugging"]
@@ -102,7 +127,8 @@ flowchart TB
     ci["GitHub Actions\nCI, Docker build, CodeQL"]
 
     developer --> editor
-    editor --> repo
+    editor --> cli
+    cli --> repo
     repo --> devcontainer
     devcontainer --> app
     devcontainer --> phone
@@ -110,7 +136,10 @@ flowchart TB
     repo --> ci
 ```
 
-The default project-creation workflow keeps new Android apps inside the workstation, then syncs editor workspace metadata so the developer can keep working from one Dev Container.
+The current implementation still supports creating Android apps inside this
+workstation checkout, then syncing editor workspace metadata so development can
+continue from one Dev Container. The target installed CLI should also support
+adding `.devcontainer/` directly to a user's own project.
 
 ```mermaid
 sequenceDiagram
@@ -130,7 +159,9 @@ sequenceDiagram
     CLI-->>User: project ready for build, devices, run-debug
 ```
 
-Standalone apps are still supported, but they are explicit. Use `export-devcontainer <directory>` only when a generated app should become its own independent repository with its own `.devcontainer/`.
+Standalone apps are supported today through `export-devcontainer <directory>`.
+In the target product shape, that workflow becomes `android-dev devcontainer
+init` from inside the user's project.
 
 ---
 
@@ -656,7 +687,14 @@ These improve editing and project navigation while keeping the environment usabl
 
 ## Shared Developer Commands
 
-The project includes one IDE-neutral command entry point:
+The target public command is:
+
+```bash
+android-dev <command>
+```
+
+During the transition, this repository includes one IDE-neutral development
+entry point:
 
 ```bash
 bash .devcontainer/scripts/android-dev.sh <command>
@@ -679,7 +717,7 @@ Available commands:
 | `init` | Interactively create and build a new Android project from a template |
 | `new-app` | Create and build a project with an optional `--template` value |
 | `project` | Run another command inside a project directory from the current shell |
-| `export-devcontainer` | Copy this workstation's Dev Container setup into a generated or existing project |
+| `export-devcontainer` | Current transition command for copying this workstation's Dev Container setup into a generated or existing project |
 | `sync-workspace` | Generate a multi-root editor workspace for nested Android projects |
 | `watch-gradle` | Watch Gradle files and prompt for sync checks |
 | `logs` | List, print, or tail command logs |
@@ -930,7 +968,9 @@ Use emulator packages inside the container only when a team has a specific reaso
 
 ## Roadmap
 
-The active roadmap is tracked in GitHub issues and in the [Android Workstation CLI Plan](docs/android-workstation-cli-plan.md).
+The active roadmap is tracked in GitHub issues, [Product Direction](docs/product-direction.md),
+[Open Source Planning](docs/open-source-planning.md), and the
+[Android Workstation CLI Plan](docs/android-workstation-cli-plan.md).
 
 | Issue | Focus | Status |
 | --- | --- | --- |
@@ -942,11 +982,13 @@ The active roadmap is tracked in GitHub issues and in the [Android Workstation C
 
 Suggested implementation order:
 
-1. Finish public README and roadmap polish.
-2. Harden Dev Container and generated-project security posture.
-3. Add Android Studio-like project template selection.
-4. Add optional SDK and Gradle plugin packs.
-5. Add emulator management with explicit host capability checks.
+1. Align docs and community planning around the installable `android-dev` shape.
+2. Introduce a stable `android-dev` executable that wraps the current CLI.
+3. Add `android-dev devcontainer init` for existing projects.
+4. Split `doctor` behavior into host and container checks.
+5. Add JSON output for future VS Code extension integration.
+6. Package the CLI for early adopters.
+7. Add optional SDK/plugin packs and emulator management.
 
 ---
 
