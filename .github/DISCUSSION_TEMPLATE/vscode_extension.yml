@@ -1,0 +1,33 @@
+title: "VS Code extension: "
+labels:
+  - vscode
+  - editor-integration
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The project is CLI-first. Use this discussion to shape a future VS Code
+        extension that calls the `android-dev` CLI instead of reimplementing
+        Android SDK, Gradle, ADB, or Dev Container behavior.
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Workflow
+      description: Which VS Code or Cursor workflow should the extension improve?
+      placeholder: "Example: guided device selection and run-debug from the command palette."
+    validations:
+      required: true
+  - type: textarea
+    id: cli-contract
+    attributes:
+      label: CLI contract needed
+      description: What CLI command, JSON output, or stable behavior would this need?
+    validations:
+      required: false
+  - type: textarea
+    id: non-goals
+    attributes:
+      label: Non-goals
+      description: What should remain terminal-only or out of scope?
+    validations:
+      required: false

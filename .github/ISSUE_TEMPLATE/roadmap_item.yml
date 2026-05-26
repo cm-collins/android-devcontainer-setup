@@ -1,0 +1,48 @@
+name: Roadmap item
+description: Propose a scoped roadmap item for the Android Dev Workstation.
+title: "[Roadmap]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What developer problem should this roadmap item solve?
+      placeholder: "Example: developers should be able to add .devcontainer files to an existing Android project without cloning this repository."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should change?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List concrete checks that make this complete.
+      placeholder: |
+        - android-dev devcontainer init refuses to overwrite existing files
+        - command prints next steps after generating files
+        - docs are updated
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - CLI
+        - Dev Container
+        - Android project templates
+        - Gradle workflow
+        - ADB and devices
+        - Emulator workflow
+        - Packaging and releases
+        - Editor integration
+        - Documentation
+    validations:
+      required: true

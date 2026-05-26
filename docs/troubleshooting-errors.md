@@ -3,6 +3,21 @@
 The Android workstation CLI prints structured warnings and errors so developers
 can identify the failing area quickly.
 
+The target product command is `android-dev`. During the transition, this
+repository still uses the local development command:
+
+```bash
+bash .devcontainer/scripts/android-dev.sh <command>
+```
+
+After Phase 1 of the cutover, user-facing examples should prefer:
+
+```bash
+android-dev logs
+android-dev logs latest
+android-dev logs tail
+```
+
 ## Log Commands
 
 List command logs:
@@ -40,6 +55,12 @@ Problem: No authorized Android devices are available.
 Why it matters: The app cannot be installed without a connected physical device or emulator.
 Next step: Run 'bash .devcontainer/scripts/android-dev.sh devices' for pairing guidance.
 Log: /workspace/.android-dev/logs/run-debug-20260519-101500.log
+```
+
+After the installed entry point exists, the next step should be printed as:
+
+```text
+Next step: Run 'android-dev devices' for pairing guidance.
 ```
 
 ## Error Areas

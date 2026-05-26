@@ -9,6 +9,7 @@ Linux, macOS, and Windows host workflows.
 Please read:
 
 * [README.md](README.md)
+* [Product Direction](docs/product-direction.md)
 * [Security Policy](SECURITY.md)
 * [Android Workstation CLI Plan](docs/android-workstation-cli-plan.md)
 * [Connect an Android Phone](docs/connect-android-phone.md)
@@ -23,6 +24,9 @@ Please read:
 ```bash
 bash .devcontainer/scripts/android-dev.sh doctor
 ```
+
+The long-term product interface is `android-dev`. During the transition, use
+the repository-local script when developing this checkout.
 
 ## Validation
 

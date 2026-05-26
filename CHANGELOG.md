@@ -11,6 +11,15 @@ stabilize.
 
 ### Added
 
+* Product direction for an installable `android-dev` CLI and future editor
+  integrations.
+* Deterministic cutover plan for moving from the template checkout to the
+  installable CLI workflow.
+* Dedicated phase plan documents under `docs/plans/` with dependencies,
+  validation gates, rollback paths, and architecture diagrams.
+* Transition notes for phone connection, troubleshooting, release, and feature
+  request docs as the project moves toward `android-dev`.
+* Open-source planning notes for roadmap issues and GitHub Discussions.
 * Reusable Android Dev Container with Android SDK profiles.
 * Helper CLI for doctor checks, builds, tests, lint, device listing, wireless
   pairing, app creation, and debug installation.

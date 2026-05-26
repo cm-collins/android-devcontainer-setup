@@ -20,3 +20,7 @@
 # Release and roadmap files
 /CHANGELOG.md @cm-collins @collins-cm
 /docs/android-workstation-cli-plan.md @cm-collins @collins-cm
+/docs/product-direction.md @cm-collins @collins-cm
+/docs/cutover-plan.md @cm-collins @collins-cm
+/docs/open-source-planning.md @cm-collins @collins-cm
+/docs/plans/ @cm-collins @collins-cm
